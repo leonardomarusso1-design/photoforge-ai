@@ -1,0 +1,89 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Camera, GalleryHorizontal, Headphones, LayoutDashboard, LogOut, Settings, Shield, Users, WalletCards } from "lucide-react";
+import { Button, Logo, StatusBadge } from "@/components/ui";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+
+const nav = [
+  { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/app/clients", label: "Clientes", icon: Users },
+  { href: "/app/shoots", label: "Ensaios", icon: Camera },
+  { href: "/app/gallery", label: "Galeria", icon: GalleryHorizontal },
+  { href: "/app/credits", label: "Creditos", icon: WalletCards },
+  { href: "/app/settings", label: "Configuracoes", icon: Settings },
+  { href: "/app/support", label: "Suporte", icon: Headphones },
+  { href: "/admin", label: "Admin", icon: Shield }
+];
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function loadRole() {
+      const supabase = createSupabaseBrowserClient();
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("profiles").select("role,status").eq("user_id", user.id).maybeSingle();
+      setIsAdmin(data?.role === "admin" && data?.status === "active");
+    }
+    loadRole();
+  }, []);
+
+  async function logout() {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
+
+  return (
+    <div className="min-h-screen bg-ink text-white">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-line bg-panel/95 p-5 lg:block">
+        <Logo />
+        <nav className="mt-8 grid gap-1">
+          {nav.filter((item) => item.href !== "/admin" || isAdmin).map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${active ? "bg-white text-ink" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="absolute bottom-5 left-5 right-5 rounded-lg border border-line bg-ink p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-400">Provider</span>
+            <StatusBadge tone="good">mock</StatusBadge>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-400">Pronto para conectar FLUX, OpenAI, Gemini, Replicate ou Fal.ai no backend.</p>
+        </div>
+      </aside>
+      <div className="lg:pl-72">
+        <header className="sticky top-0 z-10 border-b border-line bg-ink/85 px-4 py-3 backdrop-blur md:px-8">
+          <div className="flex items-center justify-between gap-4">
+            <div className="lg:hidden"><Logo /></div>
+            <div className="hidden lg:block">
+              <p className="text-sm text-slate-400">Operacao profissional de ensaios com IA</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <StatusBadge tone="good">Supabase Auth</StatusBadge>
+              <Button href="/app/shoots/new">Novo ensaio</Button>
+              <Button variant="ghost" onClick={logout} title="Sair"><LogOut className="h-4 w-4" /></Button>
+            </div>
+          </div>
+          <div className="mt-3 flex gap-2 overflow-x-auto lg:hidden">
+            {nav.filter((item) => item.href !== "/admin" || isAdmin).slice(0, 8).map((item) => <Button key={item.href} href={item.href} variant="ghost">{item.label}</Button>)}
+          </div>
+        </header>
+        <main className="mx-auto max-w-7xl px-4 py-6 md:px-8">{children}</main>
+      </div>
+    </div>
+  );
+}

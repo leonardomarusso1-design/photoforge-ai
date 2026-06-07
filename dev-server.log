@@ -1,0 +1,41 @@
+
+> photoforge-ai@0.1.0 dev
+> next dev --hostname 127.0.0.1 --port 3000
+
+   ▲ Next.js 15.5.19
+   - Local:        http://127.0.0.1:3000
+   - Network:      http://127.0.0.1:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.5s
+ ✓ Compiled /middleware in 360ms (168 modules)
+ ○ Compiling /app/shoots ...
+ ✓ Compiled /app/shoots in 3s (780 modules)
+ GET /app/shoots 200 in 3730ms
+ ○ Compiling /api/auth/ensure-profile ...
+ ✓ Compiled /api/auth/ensure-profile in 1272ms (842 modules)
+ GET /app/shoots 200 in 128ms
+ POST /api/auth/ensure-profile 200 in 1943ms
+ ✓ Compiled /app/shoots/[id] in 370ms (833 modules)
+ GET /app/shoots/096bec0e-870b-4a2f-bd36-2ed90ccc14e0 200 in 1247ms
+ POST /api/auth/ensure-profile 200 in 202ms
+ POST /api/auth/ensure-profile 200 in 559ms
+ POST /api/auth/ensure-profile 200 in 187ms
+ ○ Compiling /api/generate ...
+ ✓ Compiled /api/generate in 584ms (856 modules)
+ POST /api/generate 200 in 1941ms
+ POST /api/auth/ensure-profile 200 in 146ms
+ ○ Compiling /api/placeholder ...
+ POST /api/auth/ensure-profile 200 in 349ms
+ ✓ Compiled /api/placeholder in 1497ms (687 modules)
+ GET /api/placeholder?seed=096bec0e-870b-4a2f-bd36-2ed90ccc14e0-0-1780858978581 200 in 2477ms
+ GET /api/placeholder?seed=096bec0e-870b-4a2f-bd36-2ed90ccc14e0-1-1780858978581 200 in 2477ms
+ GET /api/placeholder?seed=096bec0e-870b-4a2f-bd36-2ed90ccc14e0-2-1780858978581 200 in 2120ms
+ GET /api/placeholder?seed=096bec0e-870b-4a2f-bd36-2ed90ccc14e0-3-1780858978581 200 in 2478ms
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (102kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (243kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ ✓ Compiled /app/dashboard in 355ms (861 modules)
+ GET /app/dashboard 200 in 549ms
+ POST /api/auth/ensure-profile 200 in 182ms
+ POST /api/auth/ensure-profile 200 in 134ms

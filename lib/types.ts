@@ -1,0 +1,154 @@
+export type UserRole = "user" | "community" | "admin";
+export type ClientStatus =
+  | "new"
+  | "waiting_photos"
+  | "ready"
+  | "generating"
+  | "review"
+  | "delivered"
+  | "cancelled";
+export type ShootStatus = "draft" | "ready" | "generating" | "completed" | "failed" | "delivered" | "archived";
+export type QualityStatus = "boa" | "media" | "ruim";
+
+export type Profile = {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  whatsapp?: string;
+  role: UserRole;
+  plan_type: "free" | "community" | "public" | "pro" | "admin" | "Comunidade" | "Publico" | "Pro" | "Admin";
+  status?: "active" | "blocked" | "deleted";
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Client = {
+  id: string;
+  user_id: string;
+  name: string;
+  whatsapp: string;
+  email?: string;
+  city?: string;
+  age?: number;
+  notes?: string;
+  status: ClientStatus;
+  total_revenue: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+};
+
+export type Shoot = {
+  id: string;
+  user_id: string;
+  client_id: string;
+  title: string;
+  category: string;
+  status: ShootStatus;
+  sold_price: number;
+  outfit?: string;
+  outfit_color?: string;
+  shoes?: string;
+  accessories?: string;
+  hair?: string;
+  makeup?: string;
+  location?: string;
+  mood?: string;
+  pose?: string;
+  expression?: string;
+  lighting?: string;
+  photo_style?: string;
+  free_notes?: string;
+  generated_prompt?: string;
+  negative_prompt?: string;
+  credits_used: number;
+  provider: string;
+  quantity: 4 | 8 | 16;
+  consent_confirmed: boolean;
+  consent_confirmed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+};
+
+export type ReferencePhoto = {
+  id: string;
+  user_id: string;
+  client_id: string;
+  shoot_id: string;
+  type: string;
+  storage_path?: string;
+  file_url: string;
+  quality_status: QualityStatus;
+  face_visible?: boolean;
+  body_visible?: boolean;
+  lighting_quality?: QualityStatus;
+  notes?: string;
+  created_at: string;
+};
+
+export type GeneratedImage = {
+  id: string;
+  user_id: string;
+  client_id: string;
+  shoot_id: string;
+  file_url: string;
+  prompt_used: string;
+  provider: string;
+  model: string;
+  status: "completed" | "failed";
+  width: number;
+  height: number;
+  seed: number;
+  cost_estimate: number;
+  is_favorite?: boolean;
+  created_at: string;
+  deleted_at?: string | null;
+};
+
+export type CreditState = {
+  id: string;
+  user_id: string;
+  balance: number;
+  total_purchased: number;
+  total_used: number;
+  updated_at: string;
+};
+
+export type CreditTransaction = {
+  id: string;
+  user_id: string;
+  type: "purchase" | "usage" | "refund" | "admin_adjustment";
+  amount: number;
+  description: string;
+  related_shoot_id?: string;
+  created_at: string;
+};
+
+export type GenerationLog = {
+  id: string;
+  user_id: string;
+  shoot_id: string;
+  provider: string;
+  model: string;
+  request_payload: unknown;
+  response_payload?: unknown;
+  status: "pending" | "success" | "failed";
+  error_message?: string;
+  credits_charged: number;
+  cost_estimate: number;
+  created_at: string;
+};
+
+export type DemoState = {
+  profile: Profile;
+  clients: Client[];
+  shoots: Shoot[];
+  referencePhotos: ReferencePhoto[];
+  generatedImages: GeneratedImage[];
+  credits: CreditState;
+  creditTransactions: CreditTransaction[];
+  generationLogs: GenerationLog[];
+};
