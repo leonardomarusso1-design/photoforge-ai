@@ -1,21 +1,10 @@
 import { buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremiumPrompt";
+import { creditsPerImageForProvider, imageQuantityError, isRealProvider, isValidImageQuantity, normalizeProviderName } from "@/lib/ai/providerRules";
 import { mockProvider } from "@/lib/ai/providers/mockProvider";
 import { replicateFluxProvider } from "@/lib/ai/providers/replicateFluxProvider";
 import type { ImageProvider } from "@/lib/ai/providers/base";
 import type { Client, CreditState, GenerationLog, ReferencePhoto, Shoot } from "@/lib/types";
-
-export function normalizeProviderName(provider?: string) {
-  if (provider === "replicate" || provider === "replicate_flux" || provider === "flux_kontext_pro") return "replicate_flux";
-  return "mock";
-}
-
-export function isRealProvider(provider?: string) {
-  return normalizeProviderName(provider) !== "mock";
-}
-
-export function creditsPerImageForProvider(provider?: string) {
-  return isRealProvider(provider) ? 10 : 1;
-}
+export { creditsPerImageForProvider, isRealProvider, normalizeProviderName };
 
 function selectProvider(providerName: string): ImageProvider {
   if (normalizeProviderName(providerName) === "replicate_flux") return replicateFluxProvider;
@@ -43,9 +32,10 @@ export async function generateImagesWithProvider(args: {
     if (!args.isAdmin || process.env.ALLOW_REAL_AI_FOR_ADMIN !== "true") {
       throw new Error("Provider real disponivel apenas para teste admin.");
     }
-    if (args.shoot.quantity > 4) {
-      throw new Error("Provider real limitado a no maximo 4 imagens por geracao.");
-    }
+  }
+
+  if (!isValidImageQuantity(providerName, args.shoot.quantity)) {
+    throw new Error(imageQuantityError(providerName));
   }
 
   if (args.credits.balance < creditCost) {
@@ -77,7 +67,7 @@ export async function generateImagesWithProvider(args: {
     shoot_id: args.shoot.id,
     provider: result.provider,
     model: result.model,
-    request_payload: { quantity: args.shoot.quantity, credits: creditCost, prompt, negativePrompt, provider: provider.name },
+    request_payload: { image_count: args.shoot.quantity, quantity: args.shoot.quantity, credits_charged: creditCost, prompt, negativePrompt, provider: provider.name, model: result.model },
     response_payload: { images: result.images.length, raw: result.rawResponse },
     status: "success",
     credits_charged: creditCost,

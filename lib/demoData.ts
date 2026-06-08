@@ -105,5 +105,13 @@ export const defaultDemoState: DemoState = {
     { id: "tx-1", user_id: userId, type: "purchase", amount: 150, description: "Creditos iniciais de desenvolvimento", created_at: now },
     { id: "tx-2", user_id: userId, type: "usage", amount: -8, description: "Geracao do ensaio Aniversario editorial", related_shoot_id: "shoot-1", created_at: now }
   ],
-  generationLogs
+  generationLogs,
+  generationConfig: {
+    provider: "mock",
+    effectiveProvider: "mock",
+    isRealProvider: false,
+    realAiEnabledForAdmin: false,
+    quantityOptions: [4, 8, 16],
+    creditsPerImage: 1
+  }
 };

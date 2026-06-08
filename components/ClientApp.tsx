@@ -5,12 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BarChart3, Camera, CheckCircle2, Copy, Download, Heart, Image as ImageIcon, Mail, MessageCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Users, WalletCards } from "lucide-react";
 import { categories, optionalPhotoTypes, requiredPhotoTypes } from "@/lib/demoData";
-import type { Client, ClientStatus, DemoState, GeneratedImage, QualityStatus, ReferencePhoto, Shoot } from "@/lib/types";
+import type { Client, ClientStatus, DemoState, GeneratedImage, GenerationQuantity, QualityStatus, ReferencePhoto, Shoot } from "@/lib/types";
 import { buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremiumPrompt";
 import { Button, Card, EmptyState, Field, inputClass, MetricCard, StatusBadge } from "@/components/ui";
 import { ClientAvatar, EditorialImagePlaceholder, EmptyGalleryState, MiniGalleryActions, RecentShootPreview, UploadKindForType, UploadVisualCard } from "@/components/visual";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentAuthUser, getCurrentUserId } from "@/lib/supabase/currentUser";
+
+const defaultGenerationConfig: DemoState["generationConfig"] = {
+  provider: "mock",
+  effectiveProvider: "mock",
+  isRealProvider: false,
+  realAiEnabledForAdmin: false,
+  quantityOptions: [4, 8, 16],
+  creditsPerImage: 1
+};
 
 function useDemoState() {
   const [state, setState] = useState<DemoState | null>(null);
@@ -46,6 +55,16 @@ function useDemoState() {
         throw new Error(queryError.message);
       }
 
+      let generationConfig = defaultGenerationConfig;
+      try {
+        const configResponse = await fetch("/api/generation-config");
+        if (configResponse.ok) {
+          generationConfig = { ...defaultGenerationConfig, ...(await configResponse.json()) };
+        }
+      } catch (error) {
+        logSupabaseError("Generation config error", error);
+      }
+
       const now = new Date().toISOString();
       setState({
         profile: profileRes.data ?? {
@@ -65,7 +84,8 @@ function useDemoState() {
         generatedImages: (imagesRes.data ?? []) as GeneratedImage[],
         credits: creditsRes.data ?? { id: userId, user_id: userId, balance: 0, total_purchased: 0, total_used: 0, updated_at: now },
         creditTransactions: txRes.data ?? [],
-        generationLogs: logsRes.data ?? []
+        generationLogs: logsRes.data ?? [],
+        generationConfig
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nao foi possivel carregar os dados do Supabase.";
@@ -146,6 +166,14 @@ function planLabel(plan?: string, role?: string) {
 
 function firstName(name?: string) {
   return (name || "Usuario").split(" ")[0] || "Usuario";
+}
+
+function creditCostForQuantity(state: DemoState, quantity: number) {
+  return quantity * state.generationConfig.creditsPerImage;
+}
+
+function quantitySelectOptions(state: DemoState) {
+  return state.generationConfig.quantityOptions.length > 0 ? state.generationConfig.quantityOptions : defaultGenerationConfig.quantityOptions;
 }
 
 export function DashboardPage() {
@@ -492,7 +520,9 @@ export function ShootCreatePage() {
   const existingRefs = draftShoot ? state.referencePhotos.filter((photo) => photo.shoot_id === draftShoot.id) : [];
   const currentRefs = [...existingRefs, ...Object.values(uploadedPhotos)];
   const readyPhotos = Boolean(draftShoot) && requiredPhotoTypes.every((photo) => currentRefs.some((ref) => ref.type === photo.type));
-  const ready = Boolean(client && form.title && form.category && readyPhotos && form.consent_confirmed && state.credits.balance >= (form.quantity ?? 4));
+  const selectedQuantity = (form.quantity as GenerationQuantity) || quantitySelectOptions(state)[0];
+  const selectedCreditCost = creditCostForQuantity(state, selectedQuantity);
+  const ready = Boolean(client && form.title && form.category && readyPhotos && form.consent_confirmed && state.credits.balance >= selectedCreditCost);
 
   async function ensureDraftShoot() {
     if (!client) {
@@ -527,7 +557,7 @@ export function ShootCreatePage() {
       free_notes: form.free_notes || null,
       credits_used: 0,
       provider: "mock",
-      quantity: (form.quantity as 4 | 8 | 16) || 4,
+      quantity: selectedQuantity,
       consent_confirmed: Boolean(form.consent_confirmed)
     };
 
@@ -786,27 +816,30 @@ function PersonalizationFields({ form, setForm }: { form: Partial<Shoot>; setFor
 }
 
 function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { state: DemoState; form: Partial<Shoot>; setForm: (next: Partial<Shoot>) => void; client?: Client; readyPhotos: boolean; ready: boolean }) {
-  const quantity = (form.quantity as 4 | 8 | 16) || 4;
+  const options = quantitySelectOptions(state);
+  const quantity = (form.quantity as GenerationQuantity) || options[0];
+  const creditsNeeded = creditCostForQuantity(state, quantity);
   const checklist = [
     ["Cliente selecionada", Boolean(client)],
     ["Fotos obrigatorias enviadas", readyPhotos],
     ["Categoria escolhida", Boolean(form.category)],
     ["Consentimento confirmado", Boolean(form.consent_confirmed)],
-    ["Creditos suficientes", state.credits.balance >= quantity]
+    ["Creditos suficientes", state.credits.balance >= creditsNeeded]
   ] as const;
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_.9fr]">
       <div className="grid gap-4">
+        {state.generationConfig.realAiEnabledForAdmin ? <div className="rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-gold">Modo teste com IA real ativo. Cada imagem consome 10 créditos e pode gerar custo na API.</div> : null}
         <Card className="bg-ink/60">
           <h3 className="font-semibold">Resumo do ensaio</h3>
           <div className="mt-4 grid gap-2 text-sm text-slate-300">
             <p>Cliente: {client?.name ?? "Nao selecionada"}</p>
             <p>Categoria: {form.category || "-"}</p>
             <p>Quantidade: {quantity} imagens</p>
-            <p>Creditos necessarios: {quantity}</p>
+            <p>Creditos necessarios: {creditsNeeded}</p>
           </div>
         </Card>
-        <Field label="Quantidade de imagens"><select className={inputClass} value={quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) as 4 | 8 | 16 })}><option value={4}>Gerar 4 imagens</option><option value={8}>Gerar 8 imagens</option><option value={16}>Gerar 16 imagens</option></select></Field>
+        <Field label="Quantidade de imagens"><select className={inputClass} value={quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) as GenerationQuantity })}>{options.map((option) => <option key={option} value={option}>Gerar {option} {option === 1 ? "imagem" : "imagens"}</option>)}</select></Field>
         <label className="flex items-start gap-3 rounded-lg border border-line bg-ink p-4 text-sm text-slate-300">
           <input type="checkbox" className="mt-1" checked={Boolean(form.consent_confirmed)} onChange={(e) => setForm({ ...form, consent_confirmed: e.target.checked })} />
           <span>Confirmo que tenho autorizacao da pessoa nas fotos para utilizar sua imagem na criacao deste ensaio com IA.</span>
@@ -815,7 +848,7 @@ function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { 
       <div className="rounded-lg border border-line bg-ink p-4">
         <h3 className="font-semibold">Checklist de geracao</h3>
         <div className="mt-4 grid gap-2">{checklist.map(([label, ok]) => <div key={label} className="flex items-center justify-between text-sm"><span className="text-slate-300">{label}</span><StatusBadge tone={ok ? "good" : "warn"}>{ok ? "OK" : "Pendente"}</StatusBadge></div>)}</div>
-        <p className="mt-4 text-xs text-slate-500">O botao so libera quando tudo estiver correto. Custo: {quantity} creditos.</p>
+        <p className="mt-4 text-xs text-slate-500">O botao so libera quando tudo estiver correto. Custo: {creditsNeeded} creditos.</p>
         <StatusBadge tone={ready ? "good" : "warn"}>{ready ? "Pronto para gerar" : "Bloqueado"}</StatusBadge>
       </div>
     </div>
@@ -840,6 +873,10 @@ export function ShootDetailPage({ id }: { id: string }) {
   const images = state.generatedImages.filter((image) => image.shoot_id === shoot.id && !image.deleted_at);
   const prompt = buildPremiumPrompt(shoot, client, refs);
   const isAdmin = state.profile.role === "admin";
+  const detailQuantityOptions = quantitySelectOptions(state);
+  const detailQuantity = ((form.quantity as GenerationQuantity) ?? shoot.quantity) as GenerationQuantity;
+  const editableDetailQuantity = detailQuantityOptions.includes(detailQuantity) ? detailQuantity : detailQuantityOptions[0];
+  const detailCreditsNeeded = creditCostForQuantity(state, editableDetailQuantity);
 
   async function uploadDetailReferencePhoto(type: string, file: File, quality: QualityStatus = "boa") {
     setEditError("");
@@ -942,7 +979,7 @@ export function ShootDetailPage({ id }: { id: string }) {
       lighting: form.lighting || null,
       photo_style: form.photo_style || null,
       free_notes: form.free_notes || null,
-      quantity: (form.quantity as 4 | 8 | 16) || currentShoot.quantity,
+      quantity: editableDetailQuantity,
       consent_confirmed: Boolean(form.consent_confirmed),
       consent_confirmed_at: form.consent_confirmed ? new Date().toISOString() : null,
       updated_at: new Date().toISOString()
@@ -984,6 +1021,7 @@ export function ShootDetailPage({ id }: { id: string }) {
     <>
       <PageTitle title={shoot.title} text={`${client.name} - ${shoot.category} - ${shoot.quantity} imagens`} action={<div className="flex gap-2"><Button variant="secondary" disabled={shoot.status === "completed"} onClick={startEditing}>Editar</Button><Button disabled={busy || shoot.status === "completed"} onClick={generate}>{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Gerar imagens</Button></div>} />
       {error ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div> : null}
+      {state.generationConfig.realAiEnabledForAdmin ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-gold">Modo teste com IA real ativo. Cada imagem consome 10 créditos e pode gerar custo na API.</div> : null}
       <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
         <Card>
           <h2 className="text-lg font-semibold">Resumo visivel ao usuario</h2>
@@ -993,7 +1031,7 @@ export function ShootDetailPage({ id }: { id: string }) {
               <Field label="Nome do ensaio"><input className={inputClass} value={form.title ?? ""} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
               <Field label="Categoria"><select className={inputClass} value={form.category ?? shoot.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></Field>
               <Field label="Valor vendido"><input className={inputClass} type="number" value={form.sold_price ?? 0} onChange={(e) => setForm({ ...form, sold_price: Number(e.target.value) })} /></Field>
-              <Field label="Quantidade"><select className={inputClass} value={(form.quantity as number) ?? shoot.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) as 4 | 8 | 16 })}><option value={4}>4 imagens</option><option value={8}>8 imagens</option><option value={16}>16 imagens</option></select></Field>
+              <Field label="Quantidade"><select className={inputClass} value={editableDetailQuantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) as GenerationQuantity })}>{detailQuantityOptions.map((option) => <option key={option} value={option}>{option} {option === 1 ? "imagem" : "imagens"}</option>)}</select></Field>
               <PersonalizationFields form={form} setForm={setForm} />
               <label className="flex items-start gap-3 rounded-lg border border-line bg-ink p-4 text-sm text-slate-300">
                 <input type="checkbox" className="mt-1" checked={Boolean(form.consent_confirmed)} onChange={(e) => setForm({ ...form, consent_confirmed: e.target.checked })} />
@@ -1002,10 +1040,10 @@ export function ShootDetailPage({ id }: { id: string }) {
               <div className="flex gap-2"><Button type="submit">Salvar ensaio</Button><Button type="button" variant="ghost" onClick={() => setEditing(false)}>Cancelar</Button></div>
             </form>
           ) : (
-            <div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Estilo: {shoot.photo_style || "-"}</p><p>Roupa: {shoot.outfit || "-"} {shoot.outfit_color || ""}</p><p>Local: {shoot.location || "-"}</p><p>Quantidade: {shoot.quantity}</p><p>Consentimento: {shoot.consent_confirmed ? "confirmado" : "pendente"}</p></div>
+            <div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Estilo: {shoot.photo_style || "-"}</p><p>Roupa: {shoot.outfit || "-"} {shoot.outfit_color || ""}</p><p>Local: {shoot.location || "-"}</p><p>Quantidade: {shoot.quantity}</p><p>Creditos necessarios: {creditCostForQuantity(state, shoot.quantity)}</p><p>Consentimento: {shoot.consent_confirmed ? "confirmado" : "pendente"}</p></div>
           )}
         </Card>
-        {isAdmin ? <PromptPreview prompt={prompt} negative={defaultNegativePrompt} /> : <Card><h2 className="text-lg font-semibold">Checklist do ensaio</h2><div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Fotos obrigatorias: {requiredPhotoTypes.every((photo) => refs.some((ref) => ref.type === photo.type)) ? "completas" : "pendentes"}</p><p>Consentimento: {shoot.consent_confirmed ? "confirmado" : "pendente"}</p><p>Creditos necessarios: {shoot.quantity}</p></div><p className="mt-4 text-sm leading-6 text-slate-400">Envie as fotos certas para aumentar a qualidade do resultado e mantenha a autorizacao de uso de imagem registrada antes de gerar.</p></Card>}
+        {isAdmin ? <PromptPreview prompt={prompt} negative={defaultNegativePrompt} /> : <Card><h2 className="text-lg font-semibold">Checklist do ensaio</h2><div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Fotos obrigatorias: {requiredPhotoTypes.every((photo) => refs.some((ref) => ref.type === photo.type)) ? "completas" : "pendentes"}</p><p>Consentimento: {shoot.consent_confirmed ? "confirmado" : "pendente"}</p><p>Creditos necessarios: {detailCreditsNeeded}</p></div><p className="mt-4 text-sm leading-6 text-slate-400">Envie as fotos certas para aumentar a qualidade do resultado e mantenha a autorizacao de uso de imagem registrada antes de gerar.</p></Card>}
       </div>
       {editing ? (
         <Card className="mt-5">

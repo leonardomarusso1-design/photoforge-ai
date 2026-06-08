@@ -9,6 +9,7 @@ export type ClientStatus =
   | "cancelled";
 export type ShootStatus = "draft" | "ready" | "generating" | "completed" | "failed" | "delivered" | "archived";
 export type QualityStatus = "boa" | "media" | "ruim";
+export type GenerationQuantity = 1 | 2 | 4 | 8 | 16;
 
 export type Profile = {
   id: string;
@@ -65,7 +66,7 @@ export type Shoot = {
   negative_prompt?: string;
   credits_used: number;
   provider: string;
-  quantity: 4 | 8 | 16;
+  quantity: GenerationQuantity;
   consent_confirmed: boolean;
   consent_confirmed_at?: string | null;
   created_at: string;
@@ -151,4 +152,12 @@ export type DemoState = {
   credits: CreditState;
   creditTransactions: CreditTransaction[];
   generationLogs: GenerationLog[];
+  generationConfig: {
+    provider: string;
+    effectiveProvider: string;
+    isRealProvider: boolean;
+    realAiEnabledForAdmin: boolean;
+    quantityOptions: GenerationQuantity[];
+    creditsPerImage: number;
+  };
 };

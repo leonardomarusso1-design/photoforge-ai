@@ -103,8 +103,8 @@ export const replicateFluxProvider: ImageProvider = {
     if (!inputImage) {
       throw new Error("Replicate requires at least one signed reference image.");
     }
-    if (input.imageCount > 4) {
-      throw new Error("Provider real limitado a no maximo 4 imagens por geracao.");
+    if (input.imageCount < 1 || input.imageCount > 4) {
+      throw new Error("Provider real permite apenas 1, 2 ou 4 imagens por geracao.");
     }
 
     const now = new Date().toISOString();

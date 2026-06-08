@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { creditsPerImageForProvider, isRealProvider, normalizeProviderName, generateImagesWithProvider } from "@/lib/ai/generateImage";
+import { imageQuantityError, isValidImageQuantity } from "@/lib/ai/providerRules";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Client, ReferencePhoto, Shoot } from "@/lib/types";
@@ -122,9 +123,10 @@ export async function POST(request: Request) {
       if (!isAdmin || process.env.ALLOW_REAL_AI_FOR_ADMIN !== "true") {
         return NextResponse.json({ error: "Provider real disponivel apenas para teste admin." }, { status: 403 });
       }
-      if (trustedShoot.quantity > 4) {
-        return NextResponse.json({ error: "Provider real limitado a no maximo 4 imagens por geracao." }, { status: 400 });
-      }
+    }
+
+    if (!isValidImageQuantity(providerName, trustedShoot.quantity)) {
+      return NextResponse.json({ error: imageQuantityError(providerName) }, { status: 400 });
     }
 
     if (nextBalance < 0) {
@@ -162,7 +164,7 @@ export async function POST(request: Request) {
         shoot_id: trustedShoot.id,
         provider: providerName,
         model: realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1",
-        request_payload: { quantity: trustedShoot.quantity, shoot_id: trustedShoot.id, provider: providerName, credits: creditsCharged },
+        request_payload: { image_count: trustedShoot.quantity, quantity: trustedShoot.quantity, shoot_id: trustedShoot.id, provider: providerName, model: realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1", credits_charged: creditsCharged },
         status: "pending",
         credits_charged: creditsCharged,
         cost_estimate: realProvider ? trustedShoot.quantity * 0.04 : trustedShoot.quantity
