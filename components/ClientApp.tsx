@@ -169,6 +169,10 @@ function firstName(name?: string) {
   return (name || "Usuario").split(" ")[0] || "Usuario";
 }
 
+function userInitials(name?: string, fallback = "PF") {
+  return (name || fallback).split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || fallback;
+}
+
 function creditCostForQuantity(state: DemoState, quantity: number) {
   return quantity * state.generationConfig.creditsPerImage;
 }
@@ -187,6 +191,86 @@ const optionalReferenceAliases: Record<string, string[]> = {
 function findReferenceByType(refs: ReferencePhoto[], type: string) {
   const aliases = optionalReferenceAliases[type] ?? [type];
   return refs.find((ref) => aliases.includes(ref.type));
+}
+
+function getShootCoverImage(shoot: Shoot, images: GeneratedImage[], shoots: Shoot[]) {
+  const activeImages = images.filter((image) => !image.deleted_at);
+  const byDate = [...activeImages].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const shootImage = byDate.find((image) => image.shoot_id === shoot.id);
+  if (shootImage) return { coverUrl: shootImage.file_url, coverSource: "shoot" as const };
+  const clientShootIds = new Set(shoots.filter((item) => item.client_id === shoot.client_id && !item.deleted_at).map((item) => item.id));
+  const clientImage = byDate.find((image) => clientShootIds.has(image.shoot_id));
+  if (clientImage) return { coverUrl: clientImage.file_url, coverSource: "client" as const };
+  return { coverUrl: "", coverSource: "placeholder" as const };
+}
+
+const shootStatusLabels: Record<string, string> = {
+  draft: "Rascunho",
+  ready: "Pronto",
+  generating: "Gerando",
+  completed: "Concluido",
+  failed: "Falhou",
+  review: "Em revisao",
+  delivered: "Entregue",
+  archived: "Arquivado"
+};
+
+const shootStatusFilterOptions = [
+  { value: "all", label: "Todos" },
+  { value: "draft", label: "Rascunhos" },
+  { value: "completed", label: "Concluidos" },
+  { value: "review", label: "Em revisao" },
+  { value: "failed", label: "Falharam" },
+  { value: "generating", label: "Gerando" }
+];
+
+function shootStatusLabel(status: string) {
+  return shootStatusLabels[status] ?? "Aberto";
+}
+
+function shootStatusTone(status: string): "default" | "good" | "warn" | "bad" {
+  if (status === "completed" || status === "delivered") return "good";
+  if (status === "failed") return "bad";
+  if (status === "generating" || status === "review" || status === "ready") return "warn";
+  return "default";
+}
+
+function shootActionLabel(status: string) {
+  if (status === "draft") return "Continuar";
+  if (status === "completed" || status === "review") return "Revisar";
+  if (status === "failed") return "Ver erro";
+  if (status === "generating") return "Acompanhar";
+  return "Abrir";
+}
+
+function formatShootDate(value?: string | null) {
+  if (!value) return "Sem atualizacao";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sem atualizacao";
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((todayStart - dateStart) / 86400000);
+  if (days === 0) return "Atualizado hoje";
+  if (days === 1) return "Atualizado ontem";
+  return `Atualizado em ${date.toLocaleDateString("pt-BR")}`;
+}
+
+function pluralizeImage(count: number) {
+  return `${count} ${count === 1 ? "imagem" : "imagens"}`;
+}
+
+function categoryPlaceholderTone(category?: string) {
+  const normalized = (category || "").toLowerCase();
+  if (normalized.includes("anivers")) return "warm" as const;
+  if (normalized.includes("profissional")) return "editorial" as const;
+  if (normalized.includes("casal")) return "soft" as const;
+  if (normalized.includes("infantil")) return "bright" as const;
+  if (normalized.includes("fitness")) return "contrast" as const;
+  if (normalized.includes("praia")) return "cool" as const;
+  if (normalized.includes("gestante")) return "delicate" as const;
+  if (normalized.includes("casual")) return "urban" as const;
+  return "cyan" as const;
 }
 
 function qualityStatusTone(status?: string | null): "default" | "good" | "warn" | "bad" {
@@ -287,7 +371,7 @@ export function DashboardPage() {
         <Card>
           <h2 className="text-lg font-semibold">Ultimos ensaios</h2>
           <div className="mt-4 grid gap-3">
-            {activeShoots.length === 0 ? <EmptyState title="Voce ainda nao tem ensaios criados." text="Crie um ensaio para organizar fotos, estilo, consentimento e geracao." action={<Button href="/app/shoots/new">Criar ensaio</Button>} /> : activeShoots.slice(0, 5).map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={state.clients.find((c) => c.id === shoot.client_id)} />)}
+            {activeShoots.length === 0 ? <EmptyState title="Voce ainda nao tem ensaios criados." text="Crie um ensaio para organizar fotos, estilo, consentimento e geracao." action={<Button href="/app/shoots/new">Criar ensaio</Button>} /> : activeShoots.slice(0, 5).map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={state.clients.find((c) => c.id === shoot.client_id)} images={state.generatedImages} shoots={state.shoots} />)}
           </div>
         </Card>
         <Card>
@@ -318,17 +402,37 @@ export function DashboardPage() {
   );
 }
 
-function ShootRow({ shoot, client }: { shoot: Shoot; client?: Client }) {
-  const tone = shoot.status === "completed" ? "good" : shoot.status === "failed" ? "bad" : shoot.status === "generating" ? "warn" : "default";
+function ShootRow({ shoot, client, images = [], shoots = [] }: { shoot: Shoot; client?: Client; images?: GeneratedImage[]; shoots?: Shoot[] }) {
+  const status = shoot.status as string;
+  const generatedCount = images.filter((image) => image.shoot_id === shoot.id && !image.deleted_at).length;
+  const cover = getShootCoverImage(shoot, images, shoots.length ? shoots : [shoot]);
   return (
-    <Link href={`/app/shoots/${shoot.id}`} className="grid gap-4 rounded-lg border border-line bg-ink/50 p-3 transition hover:border-cyan/50 sm:grid-cols-[72px_1fr_auto] sm:items-center">
-      <EditorialImagePlaceholder kind="template" label={shoot.category} className="aspect-[3/4]" />
-      <div>
-        <p className="font-medium text-white">{shoot.title}</p>
-        <p className="text-xs text-slate-400">{client?.name ?? "Cliente"} - {shoot.category}</p>
-        <p className="mt-2 text-xs text-slate-500">{shoot.credits_used || 0} creditos usados - {shoot.quantity} imagens</p>
+    <Link href={`/app/shoots/${shoot.id}`} className="group grid gap-4 rounded-lg border border-line bg-panel/85 p-3 shadow-premium transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel sm:grid-cols-[112px_1fr_auto] sm:items-center">
+      <div className="relative min-h-32 overflow-hidden rounded-lg border border-white/10 bg-ink">
+        {cover.coverUrl ? (
+          <>
+            <img src={cover.coverUrl} alt={`Capa do ensaio ${shoot.title}`} className="h-full min-h-32 w-full object-cover transition duration-300 group-hover:scale-[1.03]" onError={(event) => { event.currentTarget.style.display = "none"; }} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/10" />
+            {cover.coverSource === "client" ? <span className="absolute left-2 top-2 rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[10px] font-medium text-white backdrop-blur">Ultima do cliente</span> : null}
+          </>
+        ) : (
+          <EditorialImagePlaceholder kind="template" tone={categoryPlaceholderTone(shoot.category)} label={shoot.category || "Ensaio"} className="h-full min-h-32 border-0 shadow-none" />
+        )}
       </div>
-      <div className="flex flex-wrap items-center gap-2 sm:justify-end"><StatusBadge tone={tone}>{shoot.status}</StatusBadge><span className="text-xs text-cyan">{shoot.status === "completed" ? "Revisar" : "Continuar"}</span></div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="truncate text-base font-semibold text-white sm:text-lg">{shoot.title}</h2>
+          <StatusBadge tone={shootStatusTone(status)}>{shootStatusLabel(status)}</StatusBadge>
+        </div>
+        <p className="mt-1 text-sm text-slate-300">{client?.name ?? "Cliente"} <span className="text-slate-600">-</span> {shoot.category || "Categoria"}</p>
+        <p className="mt-3 text-xs leading-5 text-slate-500">
+          {pluralizeImage(generatedCount)} geradas <span className="text-slate-700">-</span> {shoot.credits_used || 0} creditos usados <span className="text-slate-700">-</span> {formatShootDate(shoot.updated_at || shoot.created_at)}
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-center">
+        <span className="text-xs text-slate-500 sm:hidden">{shootStatusLabel(status)}</span>
+        <span className="inline-flex min-h-9 items-center justify-center rounded-lg border border-cyan/35 bg-cyan/10 px-3 text-sm font-semibold text-cyan transition group-hover:bg-cyan group-hover:text-ink">{shootActionLabel(status)}</span>
+      </div>
     </Link>
   );
 }
@@ -593,7 +697,7 @@ export function ClientDetailPage({ id }: { id: string }) {
         </Card>
         <Card>
           <h2 className="text-lg font-semibold">Ensaios vinculados</h2>
-          <div className="mt-4 grid gap-3">{shoots.map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={client} />)}</div>
+          <div className="mt-4 grid gap-3">{shoots.map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={client} images={state.generatedImages} shoots={state.shoots} />)}</div>
         </Card>
       </div>
       <GalleryGrid images={images} title="Imagens geradas" clients={state.clients} shoots={state.shoots} />
@@ -603,13 +707,56 @@ export function ClientDetailPage({ id }: { id: string }) {
 
 export function ShootsPage() {
   const { state, loadError } = useDemoState();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
-  const shoots = state.shoots.filter((shoot) => !shoot.deleted_at);
+  const allShoots = state.shoots.filter((shoot) => !shoot.deleted_at);
+  const categoryOptions = Array.from(new Set(allShoots.map((shoot) => shoot.category).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const normalizedSearch = search.trim().toLowerCase();
+  const shoots = allShoots.filter((shoot) => {
+    const client = state.clients.find((item) => item.id === shoot.client_id);
+    const matchesSearch = normalizedSearch.length === 0 || `${shoot.title} ${client?.name ?? ""} ${shoot.category}`.toLowerCase().includes(normalizedSearch);
+    const matchesStatus = statusFilter === "all" || shoot.status === statusFilter;
+    const matchesCategory = categoryFilter === "all" || shoot.category === categoryFilter;
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
   return (
     <>
-      <PageTitle title="Ensaios" text="Acompanhe rascunhos, geracoes concluidas, falhas e entregas." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Criar ensaio</Button>} />
-      {shoots.length === 0 ? <EmptyState title="Voce ainda nao tem ensaios criados." text="Crie um ensaio para organizar fotos, briefing, consentimento e geracao." action={<Button href="/app/shoots/new">Criar ensaio</Button>} /> : <div className="grid gap-3">{shoots.map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={state.clients.find((c) => c.id === shoot.client_id)} />)}</div>}
+      <PageTitle title="Ensaios" text="Acompanhe seus ensaios, rascunhos e entregas geradas com IA." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Novo ensaio</Button>} />
+      <Card className="mb-6">
+        <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px_auto] lg:items-center">
+          <div className="flex items-center gap-3 rounded-lg border border-line bg-ink/70 px-3">
+            <Search className="h-4 w-4 text-slate-500" />
+            <input className="min-h-11 w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-600" placeholder="Buscar por ensaio ou cliente" value={search} onChange={(event) => setSearch(event.target.value)} />
+          </div>
+          <select className={inputClass} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            {shootStatusFilterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <select className={inputClass} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+            <option value="all">Todas categorias</option>
+            {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+          <Button href="/app/shoots/new" className="w-full lg:w-auto"><Plus className="h-4 w-4" /> Novo ensaio</Button>
+        </div>
+      </Card>
+      {allShoots.length === 0 ? (
+        <Card className="overflow-hidden">
+          <div className="grid gap-6 md:grid-cols-[220px_1fr] md:items-center">
+            <EditorialImagePlaceholder kind="gallery" label="Novo fluxo" className="aspect-[4/3] md:aspect-[4/5]" />
+            <div>
+              <h2 className="text-xl font-semibold text-white">Voce ainda nao criou nenhum ensaio.</h2>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">Cadastre uma cliente, envie as fotos principais e comece seu primeiro fluxo guiado.</p>
+              <Button href="/app/shoots/new" className="mt-5">Criar primeiro ensaio</Button>
+            </div>
+          </div>
+        </Card>
+      ) : shoots.length === 0 ? (
+        <EmptyState title="Nenhum ensaio encontrado." text="Tente ajustar a busca, status ou categoria para localizar outro ensaio." action={<Button variant="secondary" onClick={() => { setSearch(""); setStatusFilter("all"); setCategoryFilter("all"); }}>Limpar filtros</Button>} />
+      ) : (
+        <div className="grid gap-4">{shoots.map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={state.clients.find((c) => c.id === shoot.client_id)} images={state.generatedImages} shoots={state.shoots} />)}</div>
+      )}
     </>
   );
 }
@@ -1385,10 +1532,92 @@ export function CreditsPage() {
 }
 
 export function SettingsPage() {
-  const { state, loadError } = useDemoState();
+  const { state, reload, supabase, loadError } = useDemoState();
+  const [profileError, setProfileError] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
-  return <><PageTitle title="Configuracoes" text="Dados da conta, plano atual e preferencias basicas." /><div className="grid gap-5 lg:grid-cols-[1fr_.8fr]"><Card><h2 className="text-lg font-semibold">Dados da conta</h2><div className="mt-4 grid gap-4 md:grid-cols-2"><Field label="Nome"><input className={inputClass} defaultValue={state.profile.name} /></Field><Field label="E-mail"><input className={inputClass} defaultValue={state.profile.email} disabled /></Field><Field label="WhatsApp"><input className={inputClass} defaultValue={state.profile.whatsapp ?? ""} /></Field><Field label="Plano atual"><input className={inputClass} defaultValue={planLabel(state.profile.plan_type, state.profile.role)} disabled /></Field></div><p className="mt-4 text-sm text-slate-500">Edicao completa de perfil e avatar ficara disponivel em uma proxima versao.</p></Card><Card><h2 className="text-lg font-semibold">Seguranca</h2><p className="mt-3 text-sm leading-6 text-slate-400">Para sair com seguranca, use o menu do usuario no topo do app. Mantenha seu e-mail atualizado para recuperar acesso quando necessario.</p><Button href="/app/support" className="mt-5" variant="secondary">Falar com suporte</Button></Card></div></>;
+
+  async function uploadAvatar(file: File) {
+    setProfileError("");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setProfileError("Use uma imagem JPG, PNG ou WEBP.");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setProfileError("A foto de perfil precisa ter no maximo 4 MB.");
+      return;
+    }
+    setUploadingAvatar(true);
+    const userId = await getCurrentUserId(supabase);
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const storagePath = `${userId}/${Date.now()}-${safeName}`;
+    const upload = await supabase.storage.from("avatars").upload(storagePath, file, { contentType: file.type, upsert: true });
+    if (upload.error) {
+      logSupabaseError("Supabase error", upload.error);
+      setProfileError(process.env.NODE_ENV === "development" ? `Erro no upload: ${upload.error.message}` : "Nao foi possivel enviar a foto. Confira se o bucket avatars existe no Supabase.");
+      setUploadingAvatar(false);
+      return;
+    }
+    const { data } = supabase.storage.from("avatars").getPublicUrl(storagePath);
+    const { error } = await supabase.from("profiles").update({ avatar_url: data.publicUrl, updated_at: new Date().toISOString() }).eq("user_id", userId);
+    setUploadingAvatar(false);
+    if (error) {
+      logSupabaseError("Supabase error", error);
+      setProfileError(process.env.NODE_ENV === "development" ? `Erro do Supabase: ${error.message}` : "Nao foi possivel atualizar sua foto.");
+      return;
+    }
+    await reload();
+  }
+
+  async function removeAvatar() {
+    setProfileError("");
+    const userId = await getCurrentUserId(supabase);
+    const { error } = await supabase.from("profiles").update({ avatar_url: null, updated_at: new Date().toISOString() }).eq("user_id", userId);
+    if (error) {
+      logSupabaseError("Supabase error", error);
+      setProfileError(process.env.NODE_ENV === "development" ? `Erro do Supabase: ${error.message}` : "Nao foi possivel remover sua foto.");
+      return;
+    }
+    await reload();
+  }
+
+  return (
+    <>
+      <PageTitle title="Configuracoes" text="Dados da conta, plano atual e preferencias basicas." />
+      <div className="grid gap-5 lg:grid-cols-[1fr_.8fr]">
+        <Card>
+          <h2 className="text-lg font-semibold">Perfil</h2>
+          {profileError ? <div className="mt-4 rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{profileError}</div> : null}
+          <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
+            {state.profile.avatar_url ? <img src={state.profile.avatar_url} alt={state.profile.name} className="h-24 w-24 rounded-full border border-line object-cover" /> : <div className="grid h-24 w-24 place-items-center rounded-full border border-line bg-gradient-to-br from-cyan/80 to-violet/80 text-2xl font-semibold text-white">{userInitials(state.profile.name)}</div>}
+            <div className="grid gap-3">
+              <div>
+                <p className="font-semibold text-white">{state.profile.name}</p>
+                <p className="text-sm text-slate-400">{state.profile.email}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <input id="avatar-upload" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) uploadAvatar(file);
+                  event.currentTarget.value = "";
+                }} />
+                <label htmlFor="avatar-upload" className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-line bg-panel2 px-4 py-2 text-sm font-semibold text-white transition hover:border-cyan/70 hover:bg-white/[.07]">{uploadingAvatar ? "Enviando..." : state.profile.avatar_url ? "Trocar foto" : "Enviar foto"}</label>
+                {state.profile.avatar_url ? <Button variant="ghost" onClick={removeAvatar}>Remover foto</Button> : null}
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <Field label="Nome"><input className={inputClass} defaultValue={state.profile.name} disabled /></Field>
+            <Field label="E-mail"><input className={inputClass} defaultValue={state.profile.email} disabled /></Field>
+            <Field label="WhatsApp"><input className={inputClass} defaultValue={state.profile.whatsapp ?? ""} disabled /></Field>
+            <Field label="Plano atual"><input className={inputClass} defaultValue={planLabel(state.profile.plan_type, state.profile.role)} disabled /></Field>
+          </div>
+        </Card>
+        <Card><h2 className="text-lg font-semibold">Seguranca</h2><p className="mt-3 text-sm leading-6 text-slate-400">Para sair com seguranca, use o menu do usuario no topo do app. Mantenha seu e-mail atualizado para recuperar acesso quando necessario.</p><Button href="/app/support" className="mt-5" variant="secondary">Falar com suporte</Button></Card>
+      </div>
+    </>
+  );
 }
 
 export function SupportPage() {

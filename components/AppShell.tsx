@@ -87,7 +87,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex items-center gap-3">
               <div className="hidden items-center gap-3 rounded-lg border border-line bg-panel2 px-3 py-2 md:flex">
-                <div className="grid h-9 w-9 place-items-center rounded-full bg-white text-sm font-semibold text-ink">{initials}</div>
+                {profile?.avatar_url ? <img src={profile.avatar_url} alt={displayName} className="h-9 w-9 rounded-full border border-white/10 object-cover" /> : <div className="grid h-9 w-9 place-items-center rounded-full bg-white text-sm font-semibold text-ink">{initials}</div>}
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{displayName}</p>
                   <p className="text-xs text-slate-400">Plano: {plan} - {credits ?? 0} creditos</p>
