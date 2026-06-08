@@ -921,7 +921,10 @@ function ReferenceUploadField({ photo, refPhoto, preview, required, onUpload, on
     <UploadVisualCard title={photo.label} text={required ? "Use uma foto nitida, bem iluminada e sem filtro forte." : photo.description ?? "Envie uma referencia complementar."} complete={complete} preview={preview} kind={UploadKindForType(photo.type)}>
       <div className="grid gap-3">
         {complete && !preview ? <div className="rounded-lg border border-line bg-ink p-3 text-xs text-slate-300">Foto enviada: {refPhoto?.notes || refPhoto?.file_url}</div> : null}
-        <div className="flex flex-wrap gap-2"><StatusBadge tone={complete ? "good" : "warn"}>{complete ? "Enviada" : "Pendente"}</StatusBadge><StatusBadge tone={qualityStatusTone(refPhoto?.quality_status)}>{qualityStatusLabel(refPhoto?.quality_status)}</StatusBadge>{typeof refPhoto?.quality_score === "number" ? <StatusBadge tone="default">{refPhoto.quality_score}/100</StatusBadge> : null}{refPhoto?.can_be_primary_identity ? <StatusBadge tone="good">Identidade principal</StatusBadge> : null}</div>
+        <div className="grid gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2"><span className="text-slate-500">Upload:</span><StatusBadge tone={complete ? "good" : "warn"}>{complete ? "Enviada" : "Pendente"}</StatusBadge></div>
+          <div className="flex flex-wrap items-center gap-2"><span className="text-slate-500">Qualidade:</span><StatusBadge tone={qualityStatusTone(refPhoto?.quality_status)}>{qualityStatusLabel(refPhoto?.quality_status)}</StatusBadge>{typeof refPhoto?.quality_score === "number" ? <StatusBadge tone="default">Score: {refPhoto.quality_score}/100</StatusBadge> : null}{refPhoto?.can_be_primary_identity ? <StatusBadge tone="good">Identidade principal</StatusBadge> : null}</div>
+        </div>
         {complete ? <div className="rounded-lg border border-line bg-ink/70 p-3 text-xs leading-5 text-slate-300">
           <p>{refPhoto?.quality_recommendation || "Auditoria pendente. Reenvie a foto para atualizar a analise."}</p>
           {issues.length > 0 ? <p className="mt-2 text-slate-500">Problemas: {issues.join(", ")}</p> : null}

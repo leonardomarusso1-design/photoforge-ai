@@ -55,29 +55,30 @@ export function auditReferencePhoto(input: PhotoAuditInput): PhotoAuditResult {
   const height = input.height ?? 0;
   const shortSide = Math.min(width, height);
   const longSide = Math.max(width, height);
-  const resolutionOk = shortSide >= 600 && longSide >= 900;
-  const phoneScreenshotShape = height > width && height / Math.max(width, 1) > 1.8 && longSide >= 1400;
+  const resolutionOk = shortSide >= 480 && longSide >= 720;
+  const extremelyLowResolution = shortSide < 320 || longSide < 480;
+  const phoneScreenshotShape = height > width && height / Math.max(width, 1) > 1.9 && longSide >= 1600;
   const screenshotName = /(screenshot|screen shot|captura|print|whatsapp|instagram|gallery|galeria)/i.test(fileName);
-  const suspiciousTopBar = (input.topEdgeContrast ?? 0) > 70;
-  const isScreenshot = screenshotName || (phoneScreenshotShape && suspiciousTopBar);
+  const strongTopBar = (input.topEdgeContrast ?? 0) > 115;
+  const weakTopBar = (input.topEdgeContrast ?? 0) > 85;
+  const strongScreenshotEvidence = screenshotName || (phoneScreenshotShape && strongTopBar);
+  const weakScreenshotEvidence = !strongScreenshotEvidence && phoneScreenshotShape && weakTopBar;
+  const isScreenshot = strongScreenshotEvidence;
   const darkRatio = input.darkRatio ?? 0;
   const brightRatio = input.brightRatio ?? 0;
-  const lightingQuality = darkRatio > 0.58 || brightRatio > 0.48 ? "poor" : darkRatio > 0.38 || brightRatio > 0.32 ? "medium" : "good";
+  const lightingQuality = darkRatio > 0.72 || brightRatio > 0.62 ? "poor" : darkRatio > 0.48 || brightRatio > 0.42 ? "medium" : "good";
 
-  let score = 100;
   if (!resolutionOk) {
-    score -= 25;
     issues.push("resolucao_baixa");
   }
-  if (isScreenshot) {
-    score = Math.min(score, 35);
+  if (strongScreenshotEvidence) {
     issues.push("captura_de_tela");
+  } else if (weakScreenshotEvidence) {
+    issues.push("possivel_captura_de_tela");
   }
   if (lightingQuality === "poor") {
-    score -= 25;
     issues.push(darkRatio > brightRatio ? "foto_muito_escura" : "foto_muito_estourada");
   } else if (lightingQuality === "medium") {
-    score -= 12;
     issues.push("iluminacao_media");
   }
 
@@ -87,38 +88,51 @@ export function auditReferencePhoto(input: PhotoAuditInput): PhotoAuditResult {
   const optionalDetail = type === "important_detail" || type === "tattoo_arm" || type === "tattoo_leg" || type === "back" || type === "hair_detail";
   const optionalOutfit = type === "outfit_visual" || type === "outfit_reference";
   const hasFace = isFace || Boolean(input.width && input.height && !isBody);
-  const faceClear = isFace ? resolutionOk && !isScreenshot && lightingQuality !== "poor" : false;
-  const bodyVisible = isBody ? resolutionOk && !isScreenshot : false;
+  const faceClear = isFace ? !isScreenshot && !extremelyLowResolution && lightingQuality !== "poor" : false;
+  const bodyVisible = isBody ? !isScreenshot && !extremelyLowResolution : false;
+  let score = isFace ? 82 : isBody ? 76 : 78;
 
   if (isFace && !hasFace) {
     score -= 45;
     issues.push("rosto_nao_visivel");
   }
   if (isFace && !faceClear) {
-    score -= 25;
+    score -= lightingQuality === "poor" || extremelyLowResolution ? 35 : 14;
     issues.push("rosto_sem_nitidez_suficiente");
   }
   if (isBody && !bodyVisible) {
-    score -= 30;
+    score -= lightingQuality === "poor" || extremelyLowResolution ? 34 : 16;
     issues.push("corpo_inteiro_nao_confirmado");
   }
+  if (!resolutionOk) score -= extremelyLowResolution ? 25 : 8;
+  if (lightingQuality === "poor") score -= 22;
+  if (lightingQuality === "medium") score -= 8;
+  if (strongScreenshotEvidence) score = Math.min(score, 40);
+  if (weakScreenshotEvidence) score = Math.min(score, 72);
   if (optionalDetail && (!resolutionOk || lightingQuality === "poor")) {
-    score -= 15;
+    score -= 10;
     issues.push("detalhe_pouco_nitido");
   }
   if (optionalOutfit && !resolutionOk) {
-    score -= 10;
+    score -= 6;
     issues.push("visual_pouco_claro");
   }
 
-  score = Math.max(0, Math.min(100, Math.round(score)));
-  const status = isScreenshot && optionalPoseScenario ? "warning" : isScreenshot ? "rejected" : score >= 75 ? "approved" : score >= 60 ? "warning" : "rejected";
-  const canBePrimary = isFace && status === "approved" && score >= 75 && !isScreenshot && faceClear;
+  if ((isFace && hasFace && faceClear && !strongScreenshotEvidence) || (isBody && bodyVisible && !strongScreenshotEvidence)) {
+    score = Math.max(score, lightingQuality === "poor" || extremelyLowResolution ? 58 : 65);
+  }
 
-  let recommendation = "Aprovada: foto com qualidade suficiente para continuar.";
-  if (status === "warning") recommendation = "Atencao: foto utilizavel, mas envie uma versao melhor se possivel.";
-  if (status === "rejected") recommendation = "Reprovada: envie uma foto original, nitida, sem print e com melhor iluminacao.";
-  if (isScreenshot) recommendation = "Essa imagem parece ser uma captura de tela. Envie a foto original, sem print, sem icones e com melhor qualidade.";
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  const status = isScreenshot && optionalPoseScenario ? "warning" : isScreenshot ? "rejected" : score >= 75 ? "approved" : score >= 55 ? "warning" : "rejected";
+  const canBePrimary = isFace && hasFace && faceClear && score >= 65 && !isScreenshot;
+
+  let recommendation = isFace ? "Foto aprovada. Rosto visivel, nitidez aceitavel e boa referencia para identidade." : "Foto aprovada. Qualidade suficiente para orientar o ensaio.";
+  if (status === "warning" && isFace) recommendation = "Foto utilizavel, mas poderia melhorar. Use luz mais clara, evite filtros e aproxime um pouco mais o rosto.";
+  if (status === "warning" && isBody) recommendation = "Foto utilizavel para proporcao corporal. Para melhorar, use fundo mais limpo e mantenha o corpo inteiro visivel.";
+  if (status === "warning" && !isFace && !isBody) recommendation = "Atencao: referencia utilizavel, mas uma imagem mais clara pode melhorar o resultado.";
+  if (status === "rejected") recommendation = "Foto reprovada. Envie uma nova imagem com rosto/corpo visivel, boa luz e sem elementos de interface.";
+  if (weakScreenshotEvidence) recommendation = "Essa imagem pode parecer uma captura de tela. Se for um print, envie a foto original para melhorar o resultado.";
+  if (isScreenshot) recommendation = "Foto reprovada: ha sinais claros de captura de tela ou interface. Envie a foto original.";
   if (isScreenshot && optionalPoseScenario) recommendation = "Atencao: parece captura de tela, mas pode servir como inspiracao de pose ou cenario.";
   if (optionalDetail && status !== "approved") recommendation = "Essa referencia de detalhe esta fraca. A IA pode nao preservar esse detalhe corretamente.";
   if (isFace && !canBePrimary && status !== "rejected") recommendation = "Atencao: a foto pode ajudar, mas envie um rosto mais nitido para preservar identidade.";
@@ -186,6 +200,6 @@ export function qualityBlockMessage(referencePhotos: ReferencePhoto[]) {
   [...quality.rejected, ...quality.pending].forEach((photo) => {
     lines.push(`${photo.type}: ${photo.quality_recommendation || "envie uma foto original e nitida."}`);
   });
-  if (!quality.primary) lines.push("Rosto: envie uma foto facial original, nitida e aprovada para preservar identidade.");
+  if (!quality.primary) lines.push("Rosto: envie uma foto facial original e nitida para preservar identidade.");
   return lines.join("\n");
 }
