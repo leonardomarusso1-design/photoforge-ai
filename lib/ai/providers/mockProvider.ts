@@ -5,7 +5,7 @@ export const mockProvider: ImageProvider = {
   async generate(input) {
     await new Promise((resolve) => setTimeout(resolve, 650));
     const now = new Date().toISOString();
-    const images = Array.from({ length: input.shoot.quantity }, (_, index) => ({
+    const images = Array.from({ length: input.imageCount }, (_, index) => ({
       id: `generated-${Date.now()}-${index}`,
       user_id: input.shoot.user_id,
       client_id: input.shoot.client_id,
@@ -22,6 +22,6 @@ export const mockProvider: ImageProvider = {
       is_favorite: false,
       created_at: now
     }));
-    return { images, model: "mock-v1", costEstimate: input.shoot.quantity };
+    return { images, provider: "mock", model: "mock-v1", rawResponse: { images: images.length }, costEstimate: input.imageCount };
   }
 };

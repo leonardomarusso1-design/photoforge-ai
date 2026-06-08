@@ -26,6 +26,8 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 AI_PROVIDER=mock
+ALLOW_REAL_AI_FOR_ADMIN=false
+REPLICATE_API_TOKEN=
 APP_URL=http://localhost:3000
 ADMIN_EMAIL=
 ```
@@ -87,17 +89,40 @@ where email = 'SEU_EMAIL_ADMIN';
 
 ## Providers reais
 
-Nao ha IA real integrada ainda. Arquivos preparados:
+O provider real inicial e Replicate com `black-forest-labs/flux-kontext-pro`, mas o padrao do produto deve continuar sendo:
+
+```bash
+AI_PROVIDER=mock
+```
+
+Para teste controlado somente com admin:
+
+```bash
+AI_PROVIDER=replicate_flux
+ALLOW_REAL_AI_FOR_ADMIN=true
+REPLICATE_API_TOKEN=
+```
+
+Regras atuais:
+
+- usuario comum nao pode usar provider real
+- admin so usa provider real se `ALLOW_REAL_AI_FOR_ADMIN=true`
+- provider real limita 4 imagens por geracao
+- mock cobra 1 credito por imagem
+- Replicate cobra 10 creditos por imagem no app
+- em falha tecnica apos desconto, o backend reembolsa os creditos
+- chaves ficam apenas no backend/Vercel, nunca em client component
 
 - `lib/ai/providers/base.ts`
 - `lib/ai/providers/mockProvider.ts`
+- `lib/ai/providers/replicateFluxProvider.ts`
 - `lib/ai/providers/fluxProvider.ts`
 - `lib/ai/providers/openaiProvider.ts`
 - `lib/ai/providers/geminiProvider.ts`
 - `lib/ai/generateImage.ts`
 - `lib/ai/buildPremiumPrompt.ts`
 
-Para trocar o provider, implemente o request mapping no provider escolhido, guarde a chave somente em variavel de ambiente e chame tudo pelo backend.
+Para testar Replicate, altere `AI_PROVIDER` apenas em ambiente controlado. Volte para `mock` antes de liberar para usuarios comuns.
 
 ## Deploy Vercel
 

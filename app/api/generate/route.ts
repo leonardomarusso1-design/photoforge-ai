@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateImagesWithProvider } from "@/lib/ai/generateImage";
+import { creditsPerImageForProvider, isRealProvider, normalizeProviderName, generateImagesWithProvider } from "@/lib/ai/generateImage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Client, ReferencePhoto, Shoot } from "@/lib/types";
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   let admin: ReturnType<typeof createSupabaseAdminClient> | null = null;
   let generationLogId: string | null = null;
   let debited = false;
-  let refundContext: { userId: string; shootId: string; title: string; quantity: number; previousBalance: number; previousTotalUsed: number } | null = null;
+  let refundContext: { userId: string; shootId: string; title: string; creditsCharged: number; previousBalance: number; previousTotalUsed: number } | null = null;
 
   try {
     const body = (await request.json()) as {
@@ -67,6 +67,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cliente nao encontrada para este usuario." }, { status: 404 });
     }
 
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("role,status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      logSupabaseError("Supabase error", profileError);
+      return NextResponse.json({ error: "Nao foi possivel validar seu perfil agora." }, { status: 400 });
+    }
+
+    const isAdmin = profile?.role === "admin" && profile?.status === "active";
+
     if (!shoot.consent_confirmed) {
       return NextResponse.json({ error: "Confirme a autorizacao de uso de imagem antes de gerar." }, { status: 400 });
     }
@@ -99,11 +112,47 @@ export async function POST(request: Request) {
     const trustedShoot = { ...shoot, user_id: user.id } as Shoot;
     const trustedClient = client as Client;
     const trustedReferencePhotos = (referencePhotos ?? []) as ReferencePhoto[];
-    const nextBalance = credits.balance - trustedShoot.quantity;
+    const providerName = normalizeProviderName(process.env.AI_PROVIDER || trustedShoot.provider || "mock");
+    const realProvider = isRealProvider(providerName);
+    const creditsCharged = trustedShoot.quantity * creditsPerImageForProvider(providerName);
+    const nextBalance = credits.balance - creditsCharged;
     const now = new Date().toISOString();
+
+    if (realProvider) {
+      if (!isAdmin || process.env.ALLOW_REAL_AI_FOR_ADMIN !== "true") {
+        return NextResponse.json({ error: "Provider real disponivel apenas para teste admin." }, { status: 403 });
+      }
+      if (trustedShoot.quantity > 4) {
+        return NextResponse.json({ error: "Provider real limitado a no maximo 4 imagens por geracao." }, { status: 400 });
+      }
+    }
 
     if (nextBalance < 0) {
       return NextResponse.json({ error: "Creditos insuficientes." }, { status: 400 });
+    }
+
+    const referenceImageUrls: string[] = [];
+    if (realProvider) {
+      const primaryReference =
+        trustedReferencePhotos.find((photo) => photo.type === "face_neutral") ??
+        trustedReferencePhotos.find((photo) => photo.type === "face_smiling") ??
+        trustedReferencePhotos[0];
+      const referencePathOrUrl = primaryReference?.storage_path || primaryReference?.file_url;
+      if (!referencePathOrUrl) {
+        return NextResponse.json({ error: "Nao foi possivel preparar a foto principal para geracao real." }, { status: 400 });
+      }
+      if (/^https?:\/\//.test(referencePathOrUrl)) {
+        referenceImageUrls.push(referencePathOrUrl);
+      } else {
+        const { data: signed, error: signedError } = await admin.storage
+          .from("client-reference-photos")
+          .createSignedUrl(referencePathOrUrl, 60 * 60);
+        if (signedError || !signed?.signedUrl) {
+          if (signedError) logSupabaseError("Supabase error", signedError);
+          return NextResponse.json({ error: "Nao foi possivel preparar a foto principal para geracao real." }, { status: 400 });
+        }
+        referenceImageUrls.push(signed.signedUrl);
+      }
     }
 
     const { data: pendingLog, error: pendingLogError } = await admin
@@ -111,12 +160,12 @@ export async function POST(request: Request) {
       .insert({
         user_id: user.id,
         shoot_id: trustedShoot.id,
-        provider: trustedShoot.provider || "mock",
-        model: "mock-v1",
-        request_payload: { quantity: trustedShoot.quantity, shoot_id: trustedShoot.id },
+        provider: providerName,
+        model: realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1",
+        request_payload: { quantity: trustedShoot.quantity, shoot_id: trustedShoot.id, provider: providerName, credits: creditsCharged },
         status: "pending",
-        credits_charged: trustedShoot.quantity,
-        cost_estimate: trustedShoot.quantity
+        credits_charged: creditsCharged,
+        cost_estimate: realProvider ? trustedShoot.quantity * 0.04 : trustedShoot.quantity
       })
       .select("id")
       .single();
@@ -138,7 +187,7 @@ export async function POST(request: Request) {
       .from("credits")
       .update({
         balance: nextBalance,
-        total_used: credits.total_used + trustedShoot.quantity,
+        total_used: credits.total_used + creditsCharged,
         updated_at: now
       })
       .eq("user_id", user.id);
@@ -151,12 +200,12 @@ export async function POST(request: Request) {
     }
 
     debited = true;
-    refundContext = { userId: user.id, shootId: trustedShoot.id, title: trustedShoot.title, quantity: trustedShoot.quantity, previousBalance: credits.balance, previousTotalUsed: credits.total_used };
+    refundContext = { userId: user.id, shootId: trustedShoot.id, title: trustedShoot.title, creditsCharged, previousBalance: credits.balance, previousTotalUsed: credits.total_used };
 
     const { error: usageTxError } = await admin.from("credit_transactions").insert({
       user_id: user.id,
       type: "usage",
-      amount: -trustedShoot.quantity,
+      amount: -creditsCharged,
       balance_before: credits.balance,
       balance_after: nextBalance,
       description: `Geracao do ensaio ${trustedShoot.title}`,
@@ -167,7 +216,16 @@ export async function POST(request: Request) {
       throw usageTxError;
     }
 
-    const result = await generateImagesWithProvider({ shoot: trustedShoot, client: trustedClient, referencePhotos: trustedReferencePhotos, credits });
+    const result = await generateImagesWithProvider({
+      shoot: trustedShoot,
+      client: trustedClient,
+      referencePhotos: trustedReferencePhotos,
+      referenceImageUrls,
+      credits,
+      providerName,
+      isAdmin,
+      creditCost: creditsCharged
+    });
     const { error: imagesError } = await admin.from("generated_images").insert(
       result.images.map((image) => ({
         user_id: user.id,
@@ -211,7 +269,7 @@ export async function POST(request: Request) {
         status: "completed",
         generated_prompt: result.prompt,
         negative_prompt: result.negativePrompt,
-        credits_used: trustedShoot.quantity,
+        credits_used: creditsCharged,
         updated_at: now
       })
       .eq("id", trustedShoot.id)
@@ -236,8 +294,8 @@ export async function POST(request: Request) {
       await admin.from("credit_transactions").insert({
         user_id: refundContext.userId,
         type: "refund",
-        amount: refundContext.quantity,
-        balance_before: refundContext.previousBalance - refundContext.quantity,
+        amount: refundContext.creditsCharged,
+        balance_before: refundContext.previousBalance - refundContext.creditsCharged,
         balance_after: refundContext.previousBalance,
         description: `Reembolso por falha na geracao do ensaio ${refundContext.title}`,
         related_shoot_id: refundContext.shootId
