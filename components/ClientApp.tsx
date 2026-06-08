@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, Camera, CheckCircle2, Copy, Download, Heart, Image as ImageIcon, Plus, RefreshCw, ShieldCheck, Trash2, Users, WalletCards } from "lucide-react";
+import { BarChart3, Camera, CheckCircle2, Copy, Download, Heart, Image as ImageIcon, Mail, MessageCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Users, WalletCards } from "lucide-react";
 import { categories, optionalPhotoTypes, requiredPhotoTypes } from "@/lib/demoData";
 import type { Client, ClientStatus, DemoState, GeneratedImage, QualityStatus, ReferencePhoto, Shoot } from "@/lib/types";
 import { buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremiumPrompt";
@@ -136,20 +136,49 @@ function PageTitle({ title, text, action }: { title: string; text: string; actio
   );
 }
 
+function planLabel(plan?: string, role?: string) {
+  if (role === "admin") return "Admin";
+  if (plan === "community" || plan === "Comunidade") return "Comunidade";
+  if (plan === "pro" || plan === "Pro") return "Pro";
+  return "Publico";
+}
+
+function firstName(name?: string) {
+  return (name || "Usuario").split(" ")[0] || "Usuario";
+}
+
 export function DashboardPage() {
   const { state, loadError } = useDemoState();
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
   const revenue = state.clients.reduce((sum, client) => sum + client.total_revenue, 0);
   const cost = state.generationLogs.reduce((sum, log) => sum + log.cost_estimate, 0);
+  const activeClients = state.clients.filter((client) => !client.deleted_at);
+  const activeShoots = state.shoots.filter((shoot) => !shoot.deleted_at);
+  const incompleteShoot = activeShoots.find((shoot) => shoot.status === "draft" || shoot.status === "ready" || shoot.status === "failed");
+  const nextStep = activeClients.length === 0
+    ? { title: "Cadastre sua primeira cliente para comecar.", text: "Depois disso voce ja pode criar o primeiro ensaio guiado.", href: "/app/clients/new", label: "Novo cliente" }
+    : activeShoots.length === 0
+      ? { title: "Crie um ensaio para sua cliente.", text: "Escolha categoria, envie referencias e prepare a geracao.", href: "/app/shoots/new", label: "Novo ensaio" }
+      : incompleteShoot
+        ? { title: "Continue o ensaio em andamento.", text: `${incompleteShoot.title} ainda precisa de revisao ou conclusao.`, href: `/app/shoots/${incompleteShoot.id}`, label: "Continuar" }
+        : { title: "Pronto para criar o proximo ensaio?", text: "Seu fluxo esta organizado. Comece uma nova entrega quando quiser.", href: "/app/shoots/new", label: "Novo ensaio" };
   return (
     <>
-      <PageTitle title="Dashboard" text="Resumo operacional da sua esteira de clientes, ensaios, creditos e margem estimada." action={<Button href="/app/clients/new"><Plus className="h-4 w-4" /> Novo cliente</Button>} />
+      <PageTitle title={`Ola, ${firstName(state.profile.name)}. Pronto para criar o proximo ensaio?`} text="Acompanhe clientes, ensaios, creditos e entregas em um painel pensado para operacao diaria." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Novo ensaio</Button>} />
+      <Card className="mb-6 grid gap-4 border-cyan/25 bg-cyan/10 md:grid-cols-[1fr_auto] md:items-center">
+        <div>
+          <StatusBadge tone="good">Proximo passo</StatusBadge>
+          <h2 className="mt-3 text-xl font-semibold">{nextStep.title}</h2>
+          <p className="mt-2 text-sm text-slate-300">{nextStep.text}</p>
+        </div>
+        <Button href={nextStep.href}>{nextStep.label}</Button>
+      </Card>
       {state.credits.balance < 20 ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Seus creditos estao acabando. Recarregue para continuar gerando ensaios.</div> : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <MetricCard label="Creditos restantes" value={state.credits.balance} Icon={WalletCards} tone="cyan" />
-        <MetricCard label="Clientes cadastrados" value={state.clients.filter((c) => !c.deleted_at).length} Icon={Users} tone="violet" />
-        <MetricCard label="Ensaios gerados" value={state.shoots.length} Icon={Camera} tone="lime" />
+        <MetricCard label="Clientes cadastrados" value={activeClients.length} Icon={Users} tone="violet" />
+        <MetricCard label="Ensaios criados" value={activeShoots.length} Icon={Camera} tone="lime" />
         <MetricCard label="Imagens criadas" value={state.generatedImages.filter((img) => !img.deleted_at).length} Icon={ImageIcon} tone="gold" />
         <MetricCard label="Receita estimada" value={money(revenue)} Icon={BarChart3} tone="cyan" />
         <MetricCard label="Lucro estimado" value={money(revenue - cost)} Icon={CheckCircle2} tone="lime" />
@@ -158,14 +187,16 @@ export function DashboardPage() {
         <Card>
           <h2 className="text-lg font-semibold">Ultimos ensaios</h2>
           <div className="mt-4 grid gap-3">
-            {state.shoots.slice(0, 5).map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={state.clients.find((c) => c.id === shoot.client_id)} />)}
+            {activeShoots.length === 0 ? <EmptyState title="Voce ainda nao tem ensaios criados." text="Crie um ensaio para organizar fotos, estilo, consentimento e geracao." action={<Button href="/app/shoots/new">Criar ensaio</Button>} /> : activeShoots.slice(0, 5).map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={state.clients.find((c) => c.id === shoot.client_id)} />)}
           </div>
         </Card>
         <Card>
-          <h2 className="text-lg font-semibold">Atalhos rapidos</h2>
+          <h2 className="text-lg font-semibold">Acoes rapidas</h2>
           <div className="mt-4 grid gap-3">
+            <Button href="/app/clients/new" variant="secondary">Criar cliente</Button>
             <Button href="/app/shoots/new" variant="secondary">Criar ensaio</Button>
             <Button href="/app/gallery" variant="secondary">Abrir galeria</Button>
+            <Button href="/app/credits" variant="secondary">Solicitar creditos</Button>
             {state.profile.role === "admin" ? <Button href="/admin/logs" variant="secondary">Ver logs admin</Button> : null}
           </div>
         </Card>
@@ -189,15 +220,26 @@ function ShootRow({ shoot, client }: { shoot: Shoot; client?: Client }) {
 
 export function ClientsPage() {
   const { state, loadError } = useDemoState();
+  const [search, setSearch] = useState("");
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
+  const allClients = state.clients.filter((client) => !client.deleted_at);
+  const clients = allClients
+    .filter((client) => `${client.name} ${client.whatsapp} ${client.email ?? ""} ${client.city ?? ""}`.toLowerCase().includes(search.toLowerCase()));
   return (
     <>
       <PageTitle title="Clientes" text="Cadastre clientes finais, acompanhe status, receita informada e historico de ensaios." action={<Button href="/app/clients/new"><Plus className="h-4 w-4" /> Novo cliente</Button>} />
+      <Card className="mb-6">
+        <div className="flex items-center gap-3 rounded-lg border border-line bg-ink/70 px-3">
+          <Search className="h-4 w-4 text-slate-500" />
+          <input className="min-h-11 w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-600" placeholder="Buscar por nome, WhatsApp, e-mail ou cidade" value={search} onChange={(event) => setSearch(event.target.value)} />
+        </div>
+      </Card>
+      {clients.length === 0 ? <EmptyState title={allClients.length === 0 ? "Voce ainda nao cadastrou nenhuma cliente." : "Nenhuma cliente encontrada."} text={allClients.length === 0 ? "Cadastre a primeira cliente para criar um ensaio com IA." : "Tente buscar por outro nome, WhatsApp, e-mail ou cidade."} action={<Button href="/app/clients/new">Cadastrar cliente</Button>} /> : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {state.clients.filter((c) => !c.deleted_at).map((client) => (
+        {clients.map((client) => (
           <Link href={`/app/clients/${client.id}`} key={client.id}>
-            <Card className="h-full transition hover:border-cyan/60">
+            <Card className="h-full transition hover:-translate-y-0.5 hover:border-cyan/60">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold">{client.name}</h2>
@@ -209,6 +251,7 @@ export function ClientsPage() {
                 <div><p className="text-slate-500">Cidade</p><p>{client.city || "-"}</p></div>
                 <div><p className="text-slate-500">Receita</p><p>{money(client.total_revenue)}</p></div>
               </div>
+              <p className="mt-5 text-xs text-slate-500">Clique para ver ensaios, editar dados e abrir a galeria da cliente.</p>
             </Card>
           </Link>
         ))}
@@ -275,7 +318,7 @@ export function ClientFormPage() {
   }
   return (
     <>
-      <PageTitle title="Novo cliente" text="Registre os dados principais antes de criar ensaios e uploads." />
+      <PageTitle title="Novo cliente" text="Registre os dados principais para manter contatos, ensaios e entregas organizados." action={<Button href="/app/clients" variant="secondary">Voltar</Button>} />
       <Card>
         {errorMessage ? <div className="mb-4 rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{errorMessage}</div> : null}
         <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
@@ -286,7 +329,7 @@ export function ClientFormPage() {
           <Field label="Idade"><input className={inputClass} type="number" inputMode="numeric" min={0} max={130} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value.replace(/\D/g, "") })} /></Field>
           <Field label="Status"><select className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ClientStatus })}>{clientStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
           <Field label="Observacoes"><textarea className={inputClass} rows={4} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
-          <div className="md:col-span-2"><Button type="submit">Salvar cliente</Button></div>
+          <div className="flex flex-wrap gap-3 md:col-span-2"><Button type="submit">Salvar cliente</Button><Button href="/app/clients" variant="secondary">Cancelar</Button><Button href="/app/dashboard" variant="ghost">Voltar</Button></div>
         </form>
       </Card>
     </>
@@ -401,10 +444,11 @@ export function ShootsPage() {
   const { state, loadError } = useDemoState();
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
+  const shoots = state.shoots.filter((shoot) => !shoot.deleted_at);
   return (
     <>
       <PageTitle title="Ensaios" text="Acompanhe rascunhos, geracoes concluidas, falhas e entregas." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Criar ensaio</Button>} />
-      <div className="grid gap-3">{state.shoots.map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={state.clients.find((c) => c.id === shoot.client_id)} />)}</div>
+      {shoots.length === 0 ? <EmptyState title="Voce ainda nao tem ensaios criados." text="Crie um ensaio para organizar fotos, briefing, consentimento e geracao." action={<Button href="/app/shoots/new">Criar ensaio</Button>} /> : <div className="grid gap-3">{shoots.map((shoot) => <ShootRow key={shoot.id} shoot={shoot} client={state.clients.find((c) => c.id === shoot.client_id)} />)}</div>}
     </>
   );
 }
@@ -646,7 +690,11 @@ export function ShootCreatePage() {
   return (
     <>
       <PageTitle title="Criar ensaio" text="Fluxo guiado com checklist para garantir fotos, categoria, consentimento e creditos antes da geracao." />
-      <div className="mb-5 grid gap-2 md:grid-cols-5">{["Dados", "Fotos", "Referencias", "Personalizacao", "Geracao"].map((label, index) => <button key={label} onClick={() => setStep(index + 1)} className={`rounded-lg border px-3 py-2 text-sm ${step === index + 1 ? "border-cyan bg-cyan/10 text-cyan" : "border-line bg-panel text-slate-300"}`}>{index + 1}. {label}</button>)}</div>
+      <div className="mb-5 grid gap-2 md:grid-cols-5">{["Dados", "Fotos", "Referencias", "Personalizacao", "Geracao"].map((label, index) => {
+        const current = step === index + 1;
+        const done = step > index + 1;
+        return <button key={label} onClick={() => setStep(index + 1)} className={`rounded-lg border px-3 py-3 text-left text-sm transition ${current ? "border-cyan bg-cyan/10 text-cyan" : done ? "border-cyan/30 bg-panel text-white" : "border-line bg-panel text-slate-400 hover:border-white/20"}`}><span className="mr-2 inline-grid h-6 w-6 place-items-center rounded-full bg-white/10 text-xs">{done ? "OK" : index + 1}</span>{label}</button>;
+      })}</div>
       <Card>
         {flowError ? <div className="mb-4 rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{flowError}</div> : null}
         {step === 1 && <div className="grid gap-4 md:grid-cols-2">
@@ -667,6 +715,7 @@ export function ShootCreatePage() {
           {step > 1 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Voltar</Button> : null}
           {step < 5 ? <Button onClick={nextStep}>Continuar</Button> : <Button disabled={!ready} onClick={() => saveDraft("generate")}>Salvar e preparar geracao</Button>}
           <Button variant="ghost" onClick={() => saveDraft("draft")} disabled={!client || !form.title}>Salvar rascunho</Button>
+          <Button href="/app/shoots" variant="ghost">Cancelar</Button>
         </div>
       </Card>
     </>
@@ -676,7 +725,7 @@ export function ShootCreatePage() {
 function PhotoStep({ refs, previews, onUpload, onRemove }: { refs: ReferencePhoto[]; previews: Record<string, string>; onUpload: (type: string, file: File, quality?: QualityStatus) => void; onRemove: (type: string) => void }) {
   return (
     <div className="grid gap-5">
-      <div className="rounded-lg border border-line bg-ink/60 p-4 text-sm leading-6 text-slate-300">Use fotos nitidas, sem filtros fortes, com boa iluminacao, sem oculos escuros cobrindo o rosto. Para tatuagens visiveis, envie areas especificas.</div>
+      <div className="rounded-lg border border-line bg-ink/60 p-4 text-sm leading-6 text-slate-300">Use uma foto nitida, bem iluminada e sem filtro forte. Para tatuagens visiveis, envie areas especificas nas referencias opcionais.</div>
       <div className="grid gap-3 md:grid-cols-2">{requiredPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={refs.find((ref) => ref.type === photo.type)} preview={previews[photo.type]} required onUpload={onUpload} onRemove={onRemove} />)}</div>
     </div>
   );
@@ -686,9 +735,10 @@ function ReferenceUploadField({ photo, refPhoto, preview, required, onUpload, on
   const [quality, setQuality] = useState<QualityStatus>(refPhoto?.quality_status ?? "boa");
   const complete = Boolean(refPhoto);
   return (
-    <UploadBox title={photo.label} subtitle={required ? "Obrigatoria para preservar identidade." : "Referencia opcional para pose, roupa, cenario ou detalhe."} complete={complete}>
+    <UploadBox title={photo.label} subtitle={required ? "Obrigatoria para preservar identidade e proporcoes reais." : "Referencia opcional para pose, roupa, cenario ou detalhe."} complete={complete}>
       <div className="grid gap-3">
         {preview ? <img src={preview} alt={photo.label} className="aspect-video w-full rounded-lg border border-line object-cover" /> : complete ? <div className="rounded-lg border border-line bg-ink p-3 text-xs text-slate-300">Foto enviada: {refPhoto?.notes || refPhoto?.file_url}</div> : null}
+        <div className="flex flex-wrap gap-2"><StatusBadge tone={complete ? "good" : "warn"}>{complete ? "Enviada" : "Pendente"}</StatusBadge><StatusBadge tone={quality === "ruim" ? "bad" : quality === "media" ? "warn" : "good"}>{quality === "ruim" ? "Revisar qualidade" : quality === "media" ? "Qualidade media" : "Foto boa"}</StatusBadge></div>
         <div className="grid gap-2 sm:grid-cols-[1fr_140px]">
           <input className={inputClass} type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
             const file = event.target.files?.[0];
@@ -724,6 +774,15 @@ function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_.9fr]">
       <div className="grid gap-4">
+        <Card className="bg-ink/60">
+          <h3 className="font-semibold">Resumo do ensaio</h3>
+          <div className="mt-4 grid gap-2 text-sm text-slate-300">
+            <p>Cliente: {client?.name ?? "Nao selecionada"}</p>
+            <p>Categoria: {form.category || "-"}</p>
+            <p>Quantidade: {quantity} imagens</p>
+            <p>Creditos necessarios: {quantity}</p>
+          </div>
+        </Card>
         <Field label="Quantidade de imagens"><select className={inputClass} value={quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) as 4 | 8 | 16 })}><option value={4}>Gerar 4 imagens</option><option value={8}>Gerar 8 imagens</option><option value={16}>Gerar 16 imagens</option></select></Field>
         <label className="flex items-start gap-3 rounded-lg border border-line bg-ink p-4 text-sm text-slate-300">
           <input type="checkbox" className="mt-1" checked={Boolean(form.consent_confirmed)} onChange={(e) => setForm({ ...form, consent_confirmed: e.target.checked })} />
@@ -757,6 +816,7 @@ export function ShootDetailPage({ id }: { id: string }) {
   const refs = state.referencePhotos.filter((photo) => photo.shoot_id === shoot.id);
   const images = state.generatedImages.filter((image) => image.shoot_id === shoot.id && !image.deleted_at);
   const prompt = buildPremiumPrompt(shoot, client, refs);
+  const isAdmin = state.profile.role === "admin";
 
   async function uploadDetailReferencePhoto(type: string, file: File, quality: QualityStatus = "boa") {
     setEditError("");
@@ -899,7 +959,7 @@ export function ShootDetailPage({ id }: { id: string }) {
   }
   return (
     <>
-      <PageTitle title={shoot.title} text={`${client.name} - ${shoot.category} - ${shoot.quantity} imagens`} action={<div className="flex gap-2"><Button variant="secondary" disabled={shoot.status === "completed"} onClick={startEditing}>Editar</Button><Button disabled={busy || shoot.status === "completed"} onClick={generate}>{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Gerar com mockProvider</Button></div>} />
+      <PageTitle title={shoot.title} text={`${client.name} - ${shoot.category} - ${shoot.quantity} imagens`} action={<div className="flex gap-2"><Button variant="secondary" disabled={shoot.status === "completed"} onClick={startEditing}>Editar</Button><Button disabled={busy || shoot.status === "completed"} onClick={generate}>{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Gerar imagens</Button></div>} />
       {error ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div> : null}
       <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
         <Card>
@@ -922,7 +982,7 @@ export function ShootDetailPage({ id }: { id: string }) {
             <div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Estilo: {shoot.photo_style || "-"}</p><p>Roupa: {shoot.outfit || "-"} {shoot.outfit_color || ""}</p><p>Local: {shoot.location || "-"}</p><p>Quantidade: {shoot.quantity}</p><p>Consentimento: {shoot.consent_confirmed ? "confirmado" : "pendente"}</p></div>
           )}
         </Card>
-        <PromptPreview prompt={prompt} negative={defaultNegativePrompt} />
+        {isAdmin ? <PromptPreview prompt={prompt} negative={defaultNegativePrompt} /> : <Card><h2 className="text-lg font-semibold">Checklist do ensaio</h2><div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Fotos obrigatorias: {requiredPhotoTypes.every((photo) => refs.some((ref) => ref.type === photo.type)) ? "completas" : "pendentes"}</p><p>Consentimento: {shoot.consent_confirmed ? "confirmado" : "pendente"}</p><p>Creditos necessarios: {shoot.quantity}</p></div><p className="mt-4 text-sm leading-6 text-slate-400">Envie as fotos certas para aumentar a qualidade do resultado e mantenha a autorizacao de uso de imagem registrada antes de gerar.</p></Card>}
       </div>
       {editing ? (
         <Card className="mt-5">
@@ -934,7 +994,7 @@ export function ShootDetailPage({ id }: { id: string }) {
           </div>
         </Card>
       ) : null}
-      <GalleryGrid images={images} title="Resultado do ensaio" />
+      <GalleryGrid images={images} title="Resultado do ensaio" showProvider={isAdmin} />
     </>
   );
 }
@@ -957,9 +1017,11 @@ export function GalleryPage() {
   const { state, reload, supabase, loadError } = useDemoState();
   const [clientFilter, setClientFilter] = useState("");
   const [shootFilter, setShootFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [preview, setPreview] = useState<GeneratedImage | null>(null);
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
+  const isAdmin = state.profile.role === "admin";
 
   async function updateImage(id: string, values: Partial<GeneratedImage>) {
     const userId = await getCurrentUserId(supabase);
@@ -974,7 +1036,8 @@ export function GalleryPage() {
   const images = state.generatedImages
     .filter((img) => !img.deleted_at)
     .filter((img) => !clientFilter || img.client_id === clientFilter)
-    .filter((img) => !shootFilter || img.shoot_id === shootFilter);
+    .filter((img) => !shootFilter || img.shoot_id === shootFilter)
+    .filter((img) => !categoryFilter || state.shoots.find((shoot) => shoot.id === img.shoot_id)?.category === categoryFilter);
 
   const shootsForFilter = state.shoots.filter((shoot) => !clientFilter || shoot.client_id === clientFilter);
 
@@ -982,22 +1045,23 @@ export function GalleryPage() {
     <>
       <PageTitle title="Galeria" text="Veja imagens por cliente e ensaio, baixe, favorite ou exclua com soft delete." />
       <Card className="mb-6">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-3">
           <Field label="Filtrar por cliente"><select className={inputClass} value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); setShootFilter(""); }}><option value="">Todos os clientes</option>{state.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field>
+          <Field label="Filtrar por categoria"><select className={inputClass} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option value="">Todas as categorias</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
           <Field label="Filtrar por ensaio"><select className={inputClass} value={shootFilter} onChange={(event) => setShootFilter(event.target.value)}><option value="">Todos os ensaios</option>{shootsForFilter.map((shoot) => <option key={shoot.id} value={shoot.id}>{shoot.title}</option>)}</select></Field>
         </div>
       </Card>
-      <GalleryGrid images={images} title="Todas as imagens" onPreview={setPreview} onFavorite={(image) => updateImage(image.id, { is_favorite: !image.is_favorite })} onDelete={(image) => updateImage(image.id, { deleted_at: new Date().toISOString() })} />
+      <GalleryGrid images={images} title="Todas as imagens" showProvider={isAdmin} onPreview={setPreview} onFavorite={(image) => updateImage(image.id, { is_favorite: !image.is_favorite })} onDelete={(image) => updateImage(image.id, { deleted_at: new Date().toISOString() })} />
       {preview ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={() => setPreview(null)}><div className="max-h-[90vh] max-w-4xl overflow-hidden rounded-lg border border-line bg-panel p-3" onClick={(event) => event.stopPropagation()}><img src={preview.file_url} alt="Preview" className="max-h-[78vh] w-full object-contain" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=preview-${preview.id}`; }} /><div className="mt-3 flex justify-end"><Button variant="secondary" onClick={() => setPreview(null)}>Fechar</Button></div></div></div> : null}
     </>
   );
 }
 
-function GalleryGrid({ images, title, onPreview, onFavorite, onDelete }: { images: GeneratedImage[]; title: string; onPreview?: (image: GeneratedImage) => void; onFavorite?: (image: GeneratedImage) => void; onDelete?: (image: GeneratedImage) => void }) {
+function GalleryGrid({ images, title, showProvider = false, onPreview, onFavorite, onDelete }: { images: GeneratedImage[]; title: string; showProvider?: boolean; onPreview?: (image: GeneratedImage) => void; onFavorite?: (image: GeneratedImage) => void; onDelete?: (image: GeneratedImage) => void }) {
   return (
     <section className="mt-6">
       <h2 className="mb-4 text-lg font-semibold">{title}</h2>
-      {images.length === 0 ? <EmptyState title="Nenhuma imagem ainda" text="Gere um ensaio com o mockProvider para popular esta galeria." /> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{images.map((image, index) => <Card key={image.id} className="overflow-hidden p-0"><button type="button" className="block w-full" onClick={() => onPreview?.(image)}><img src={image.file_url} alt="Imagem gerada" className="aspect-[3/4] w-full object-cover" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=fallback-${image.id}-${index}`; }} /></button><div className="flex items-center justify-between p-3"><StatusBadge tone="good">{image.provider}</StatusBadge><div className="flex gap-2"><Button variant="ghost" onClick={() => onFavorite?.(image)}><Heart className={`h-4 w-4 ${image.is_favorite ? "fill-cyan text-cyan" : ""}`} /></Button><Button variant="ghost" onClick={() => window.open(image.file_url, "_blank")}><Download className="h-4 w-4" /></Button><Button variant="ghost" onClick={() => onDelete?.(image)}><Trash2 className="h-4 w-4" /></Button></div></div></Card>)}</div>}
+      {images.length === 0 ? <EmptyState title="Sua galeria ainda esta vazia." text="Gere seu primeiro ensaio para ver as imagens aqui." action={<Button href="/app/shoots/new">Criar ensaio</Button>} /> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{images.map((image, index) => <Card key={image.id} className="overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50"><button type="button" className="block w-full" onClick={() => onPreview?.(image)}><img src={image.file_url} alt="Imagem gerada" className="aspect-[3/4] w-full object-cover" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=fallback-${image.id}-${index}`; }} /></button><div className="flex items-center justify-between p-3">{showProvider ? <StatusBadge tone="good">{image.provider}</StatusBadge> : <StatusBadge tone="good">Pronta</StatusBadge>}<div className="flex gap-2"><Button variant="ghost" title="Favoritar" onClick={() => onFavorite?.(image)}><Heart className={`h-4 w-4 ${image.is_favorite ? "fill-cyan text-cyan" : ""}`} /></Button><Button variant="ghost" title="Baixar" onClick={() => window.open(image.file_url, "_blank")}><Download className="h-4 w-4" /></Button><Button variant="ghost" title="Excluir" onClick={() => onDelete?.(image)}><Trash2 className="h-4 w-4" /></Button></div></div></Card>)}</div>}
     </section>
   );
 }
@@ -1008,9 +1072,18 @@ export function CreditsPage() {
   if (!state) return <LoadingState />;
   return (
     <>
-      <PageTitle title="Creditos" text="Consumo configuravel por imagem. Pagamento real fica preparado para Stripe, Kiwify ou Mercado Pago." />
-      <div className="grid gap-4 md:grid-cols-4">{[100, 300, 500, 1000].map((pack) => <Card key={pack}><h2 className="text-2xl font-semibold">{pack}</h2><p className="mt-1 text-sm text-slate-400">creditos</p><Button className="mt-5 w-full" disabled>Comprar</Button><p className="mt-3 text-xs text-gold">Pagamento ainda em configuracao.</p></Card>)}</div>
-      <Card className="mt-6"><h2 className="text-lg font-semibold">Transacoes</h2><div className="mt-4 grid gap-2">{state.creditTransactions.map((tx) => <div key={tx.id} className="flex justify-between rounded-lg border border-line bg-ink p-3 text-sm"><span>{tx.description}</span><span>{tx.amount}</span></div>)}</div></Card>
+      <PageTitle title="Creditos" text="Seus creditos controlam quantas imagens podem ser geradas. Pagamento real ainda nao esta ativo." />
+      <Card className="mb-6 border-cyan/25 bg-cyan/10">
+        <p className="text-sm text-slate-300">Saldo atual</p>
+        <div className="mt-2 text-5xl font-semibold">{state.credits.balance}</div>
+        <p className="mt-2 text-sm text-slate-400">Use com cuidado em cada ensaio e acompanhe o historico abaixo.</p>
+      </Card>
+      <div className="grid gap-4 md:grid-cols-3">{[
+        ["Publico", 100, "Ideal para testar ensaios avulsos."],
+        ["Comunidade", 300, "Creditos com condicoes melhores para alunos."],
+        ["Pro", 1000, "Maior volume para uso profissional."]
+      ].map(([plan, pack, text]) => <Card key={plan as string} className="hover:border-cyan/40"><StatusBadge tone={plan === "Comunidade" ? "good" : "default"}>{plan as string}</StatusBadge><h2 className="mt-4 text-3xl font-semibold">{pack as number}</h2><p className="mt-1 text-sm text-slate-400">creditos</p><p className="mt-3 min-h-10 text-sm leading-5 text-slate-400">{text as string}</p><Button className="mt-5 w-full" disabled>Solicitar creditos</Button><p className="mt-3 text-xs text-gold">Em breve</p></Card>)}</div>
+      <Card className="mt-6"><h2 className="text-lg font-semibold">Historico de transacoes</h2><div className="mt-4 grid gap-2">{state.creditTransactions.length === 0 ? <EmptyState title="Nenhuma transacao ainda." text="Quando creditos forem usados ou adicionados, o historico aparece aqui." /> : state.creditTransactions.map((tx) => <div key={tx.id} className="flex justify-between rounded-lg border border-line bg-ink p-3 text-sm"><span>{tx.description}</span><span className={tx.amount < 0 ? "text-red-200" : "text-cyan"}>{tx.amount}</span></div>)}</div></Card>
     </>
   );
 }
@@ -1019,11 +1092,18 @@ export function SettingsPage() {
   const { state, loadError } = useDemoState();
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
-  return <><PageTitle title="Configuracoes" text="Perfil, plano, preferencias e conta." /><Card><div className="grid gap-4 md:grid-cols-2"><Field label="Nome"><input className={inputClass} defaultValue={state.profile.name} /></Field><Field label="WhatsApp"><input className={inputClass} defaultValue={state.profile.whatsapp} /></Field><Field label="Plano"><input className={inputClass} defaultValue={state.profile.plan_type} disabled /></Field><Field label="Idioma"><select className={inputClass} defaultValue="pt-BR"><option>pt-BR</option></select></Field></div></Card></>;
+  return <><PageTitle title="Configuracoes" text="Dados da conta, plano atual e preferencias basicas." /><div className="grid gap-5 lg:grid-cols-[1fr_.8fr]"><Card><h2 className="text-lg font-semibold">Dados da conta</h2><div className="mt-4 grid gap-4 md:grid-cols-2"><Field label="Nome"><input className={inputClass} defaultValue={state.profile.name} /></Field><Field label="E-mail"><input className={inputClass} defaultValue={state.profile.email} disabled /></Field><Field label="WhatsApp"><input className={inputClass} defaultValue={state.profile.whatsapp ?? ""} /></Field><Field label="Plano atual"><input className={inputClass} defaultValue={planLabel(state.profile.plan_type, state.profile.role)} disabled /></Field></div><p className="mt-4 text-sm text-slate-500">Edicao completa de perfil e avatar ficara disponivel em uma proxima versao.</p></Card><Card><h2 className="text-lg font-semibold">Seguranca</h2><p className="mt-3 text-sm leading-6 text-slate-400">Sua sessao usa Supabase Auth. Para sair com seguranca, use o menu do usuario no topo do app.</p><Button href="/app/support" className="mt-5" variant="secondary">Falar com suporte</Button></Card></div></>;
 }
 
 export function SupportPage() {
-  return <><PageTitle title="Suporte" text="Area simples para orientar usuarios em caso de falhas, creditos e consentimento." /><Card><p className="text-sm leading-6 text-slate-300">Nao foi possivel gerar as imagens agora? Tente novamente, confira creditos e fotos obrigatorias. Para uso indevido, a conta pode ser bloqueada pelo admin.</p></Card></>;
+  const faqs = [
+    ["Creditos", "Confira seu saldo antes de gerar. Se o saldo for insuficiente, solicite novos creditos."],
+    ["Upload", "Use JPG, PNG ou WEBP ate 10 MB, com boa luz e sem filtro forte."],
+    ["Geracao", "A geracao so libera com cliente, categoria, fotos obrigatorias, consentimento e creditos."],
+    ["Conta", "Se nao conseguir entrar, faca logout e login novamente ou revise o e-mail usado."],
+    ["Pagamento", "Compra automatica de creditos ainda esta em preparacao."]
+  ];
+  return <><PageTitle title="Suporte" text="Encontre respostas rapidas para problemas comuns de conta, upload, creditos e geracao." action={<Button href="mailto:suporte@photoforge.ai" variant="secondary"><Mail className="h-4 w-4" /> E-mail</Button>} /><div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><Card><MessageCircle className="h-8 w-8 text-cyan" /><h2 className="mt-4 text-lg font-semibold">Precisa de ajuda?</h2><p className="mt-2 text-sm leading-6 text-slate-400">Use o e-mail de suporte ou fale pelo WhatsApp configurado pela equipe. Descreva o cliente, ensaio e mensagem de erro.</p><Button className="mt-5" disabled>WhatsApp em breve</Button></Card><div className="grid gap-3">{faqs.map(([title, text]) => <Card key={title}><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{text}</p></Card>)}</div></div></>;
 }
 
 export function AdminPage({ section = "overview" }: { section?: string }) {
@@ -1053,17 +1133,26 @@ export function AdminPage({ section = "overview" }: { section?: string }) {
   const transactions = adminOverview?.transactions ?? state.creditTransactions;
   return (
     <>
-      <PageTitle title={`Admin ${section}`} text="Painel administrativo separado do dashboard do usuario comum." />
+      <PageTitle title={`Admin ${section}`} text="Visao tecnica para acompanhar usuarios, creditos, logs, erros e configuracoes do app." action={<Button href="/admin/users" variant="secondary">Ver usuarios</Button>} />
       <div className="grid gap-4 md:grid-cols-4">
         <MetricCard label="Usuarios totais" value={adminOverview?.totalUsers ?? 0} Icon={Users} />
+        <MetricCard label="Usuarios ativos" value={Math.max((adminOverview?.totalUsers ?? 0) - (adminOverview?.blockedUsers ?? 0), 0)} Icon={CheckCircle2} tone="lime" />
         <MetricCard label="Creditos em circulacao" value={adminOverview?.creditsInCirculation ?? 0} Icon={WalletCards} tone="violet" />
         <MetricCard label="Imagens geradas" value={adminOverview?.generatedImages ?? 0} Icon={ImageIcon} tone="lime" />
         <MetricCard label="Ensaios totais" value={adminOverview?.totalShoots ?? 0} Icon={Camera} tone="gold" />
         <MetricCard label="Logs com erro" value={adminOverview?.failedLogs ?? 0} Icon={ShieldCheck} tone="violet" />
         <MetricCard label="Usuarios bloqueados" value={adminOverview?.blockedUsers ?? 0} Icon={Users} tone="gold" />
         <MetricCard label="Provider ativo" value={adminOverview?.activeProvider ?? "mock"} Icon={BarChart3} tone="cyan" />
-        <MetricCard label="Acoes de credito" value="Admin" Icon={WalletCards} tone="lime" />
       </div>
+      <Card className="mt-6">
+        <h2 className="text-lg font-semibold">Acoes rapidas de admin</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Button href="/admin/users" variant="secondary">Ver usuarios</Button>
+          <Button href="/admin/credits" variant="secondary">Adicionar creditos</Button>
+          <Button href="/admin/logs" variant="secondary">Ver logs</Button>
+          <Button href="/admin/settings" variant="secondary">Configuracoes</Button>
+        </div>
+      </Card>
       <Card className="mt-6 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="text-slate-400"><tr><th className="p-3">Tipo</th><th className="p-3">Item</th><th className="p-3">Status</th><th className="p-3">Detalhe</th></tr></thead><tbody>{logs.map((log) => <tr key={log.id} className="border-t border-line"><td className="p-3">Log</td><td className="p-3">{log.provider}/{log.model}</td><td className="p-3"><StatusBadge tone={log.status === "success" ? "good" : log.status === "pending" ? "warn" : "bad"}>{log.status}</StatusBadge></td><td className="p-3 text-slate-400">{log.error_message || `${log.credits_charged} creditos - custo ${money(log.cost_estimate)}`}</td></tr>)}</tbody></table></Card>
       <Card className="mt-6 overflow-x-auto"><h2 className="mb-4 text-lg font-semibold">Transacoes de credito</h2><table className="w-full min-w-[720px] text-left text-sm"><thead className="text-slate-400"><tr><th className="p-3">Tipo</th><th className="p-3">Valor</th><th className="p-3">Descricao</th><th className="p-3">Data</th></tr></thead><tbody>{transactions.map((tx) => <tr key={tx.id} className="border-t border-line"><td className="p-3">{tx.type}</td><td className="p-3">{tx.amount}</td><td className="p-3 text-slate-400">{tx.description}</td><td className="p-3 text-slate-400">{new Date(tx.created_at).toLocaleString("pt-BR")}</td></tr>)}</tbody></table></Card>
       <Card className="mt-6"><h2 className="text-lg font-semibold">Settings</h2><div className="mt-4 grid gap-3 md:grid-cols-3">{["active_provider: mock", "credits_per_image: 1", "max_reference_images: 5", "max_upload_size_mb: 10", "community_discount_percentage: 30", "public_credit_price: configurable"].map((item) => <div key={item} className="rounded-lg border border-line bg-ink p-3 text-sm text-slate-300">{item}</div>)}</div></Card>
@@ -1072,7 +1161,7 @@ export function AdminPage({ section = "overview" }: { section?: string }) {
 }
 
 export function LoadingState() {
-  return <div className="rounded-lg border border-line bg-panel p-8 text-sm text-slate-400">Carregando PhotoForge AI...</div>;
+  return <div className="grid gap-4"><div className="h-24 animate-pulse rounded-lg border border-line bg-panel" /><div className="grid gap-4 md:grid-cols-3"><div className="h-32 animate-pulse rounded-lg border border-line bg-panel" /><div className="h-32 animate-pulse rounded-lg border border-line bg-panel" /><div className="h-32 animate-pulse rounded-lg border border-line bg-panel" /></div></div>;
 }
 
 function LoadErrorState({ message }: { message: string }) {

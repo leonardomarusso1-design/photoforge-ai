@@ -5,10 +5,10 @@ import type { LucideIcon } from "lucide-react";
 export function Logo() {
   return (
     <Link href="/" className="flex items-center gap-3">
-      <div className="grid h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-violet to-cyan text-sm font-black text-white shadow-premium">PF</div>
+      <div className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-gradient-to-br from-cyan via-violet to-gold text-sm font-black text-white shadow-premium">PF</div>
       <div>
         <div className="text-base font-semibold text-white">PhotoForge AI</div>
-        <div className="text-xs text-slate-400">Realistic AI shoots</div>
+        <div className="text-xs text-slate-400">Ensaios realistas com IA</div>
       </div>
     </Link>
   );
@@ -16,9 +16,9 @@ export function Logo() {
 
 export function Button({ href, children, variant = "primary", className, disabled, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { href?: string; variant?: "primary" | "secondary" | "ghost" | "danger" }) {
   const cn = clsx(
-    "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-cyan disabled:cursor-not-allowed disabled:opacity-45",
-    variant === "primary" && "bg-white text-ink hover:bg-cyan",
-    variant === "secondary" && "border border-line bg-panel2 text-white hover:border-cyan",
+    "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition duration-200 focus:outline-none focus:ring-2 focus:ring-cyan disabled:cursor-not-allowed disabled:opacity-45",
+    variant === "primary" && "bg-white text-ink shadow-premium hover:bg-cyan hover:shadow-cyan/20",
+    variant === "secondary" && "border border-line bg-panel2 text-white hover:border-cyan/70 hover:bg-white/[.07]",
     variant === "ghost" && "text-slate-300 hover:bg-white/5 hover:text-white",
     variant === "danger" && "bg-red-500/15 text-red-200 hover:bg-red-500/25",
     className
@@ -28,13 +28,13 @@ export function Button({ href, children, variant = "primary", className, disable
 }
 
 export function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <section className={clsx("rounded-lg border border-line bg-panel p-5 shadow-premium", className)}>{children}</section>;
+  return <section className={clsx("rounded-lg border border-line bg-panel/95 p-5 shadow-premium transition duration-200", className)}>{children}</section>;
 }
 
 export function MetricCard({ label, value, tone = "cyan", Icon }: { label: string; value: string | number; tone?: "cyan" | "violet" | "lime" | "gold"; Icon?: LucideIcon }) {
   const tones = { cyan: "text-cyan", violet: "text-violet", lime: "text-lime", gold: "text-gold" };
   return (
-    <Card className="min-h-32">
+    <Card className="min-h-32 hover:border-white/15">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-slate-400">{label}</p>
         {Icon ? <Icon className={clsx("h-5 w-5", tones[tone])} /> : null}
@@ -53,7 +53,7 @@ export function Field({ label, children }: { label: string; children: React.Reac
   );
 }
 
-export const inputClass = "min-h-11 w-full rounded-lg border border-line bg-ink/70 px-3 py-2 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan";
+export const inputClass = "min-h-11 w-full rounded-lg border border-line bg-ink/70 px-3 py-2 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan focus:bg-ink";
 
 export function StatusBadge({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "good" | "warn" | "bad" }) {
   return (
@@ -79,7 +79,7 @@ export function EmptyState({ title, text, action }: { title: string; text: strin
 
 export function UploadBox({ title, subtitle, complete, children }: { title: string; subtitle: string; complete?: boolean; children?: React.ReactNode }) {
   return (
-    <div className={clsx("rounded-lg border p-4", complete ? "border-cyan/40 bg-cyan/10" : "border-line bg-ink/50")}>
+    <div className={clsx("rounded-lg border p-4 transition hover:border-cyan/40", complete ? "border-cyan/40 bg-cyan/10" : "border-line bg-ink/50")}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-medium text-white">{title}</p>
@@ -88,6 +88,16 @@ export function UploadBox({ title, subtitle, complete, children }: { title: stri
         <StatusBadge tone={complete ? "good" : "warn"}>{complete ? "Enviada" : "Pendente"}</StatusBadge>
       </div>
       {children ? <div className="mt-3">{children}</div> : null}
+    </div>
+  );
+}
+
+export function SectionHeader({ eyebrow, title, text }: { eyebrow?: string; title: string; text?: string }) {
+  return (
+    <div className="max-w-3xl">
+      {eyebrow ? <p className="text-xs font-semibold uppercase text-cyan">{eyebrow}</p> : null}
+      <h2 className="mt-2 text-2xl font-semibold text-white md:text-3xl">{title}</h2>
+      {text ? <p className="mt-3 text-sm leading-6 text-slate-400">{text}</p> : null}
     </div>
   );
 }
