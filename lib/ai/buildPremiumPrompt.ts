@@ -1,6 +1,6 @@
 import type { Client, ReferencePhoto, Shoot } from "@/lib/types";
 
-const identityBlock = `Use the uploaded reference photos only as identity reference. Preserve the real face, facial structure, natural asymmetry, real skin texture, age, body proportions, hair, eyes, nose, mouth, lips, jawline, and all visible distinctive features of the person. Do not beautify excessively. Do not create a model-like face. Do not change ethnicity, age, weight, body shape, hairstyle, skin tone or facial expression beyond what is requested. Keep natural imperfections and realistic human details. The final image must look like a real professional photo, not AI-generated.`;
+const identityBlock = `Use the uploaded photos only as identity and body reference. Do not copy the clothing or background from the reference photos unless explicitly requested. Preserve the real face, facial structure, natural asymmetry, real skin texture, age, body proportions, hair, eyes, nose, mouth, lips, jawline, and all visible distinctive features of the person. Do not beautify excessively. Do not create a model-like face. Do not change ethnicity, age, weight, body shape, hairstyle, skin tone or facial expression beyond what is requested. Keep natural imperfections and realistic human details. The final image must look like a real professional photo, not AI-generated.`;
 
 const anatomyBlock = `Maintain realistic human anatomy, natural posture, correct hands, correct fingers, correct legs, realistic shoulders, realistic feet and normal body proportions. Keep the person looking their real age. Do not make the person younger or older unless explicitly requested. Preserve the original hair color, hair volume, hairline, haircut and natural texture. Preserve natural skin texture, pores, small marks, wrinkles, moles and realistic imperfections. Avoid plastic skin, over-smoothing or beauty filter look.`;
 
@@ -22,17 +22,71 @@ function normalizeText(value?: string | null) {
   return value?.trim().replace(/\s+/g, " ") ?? "";
 }
 
-function uniqueParts(parts: (string | undefined | null | false)[]) {
-  const seen = new Set<string>();
-  return parts
-    .map((part) => normalizeText(part || ""))
-    .filter(Boolean)
-    .filter((part) => {
-      const key = part.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+function normalizeKey(value: string) {
+  return normalizeText(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function significantTokens(value: string) {
+  const stopWords = new Set(["e", "de", "da", "do", "com", "sem", "a", "o", "as", "os", "the", "and", "with", "of"]);
+  return normalizeKey(value).split(" ").filter((token) => token.length > 2 && !stopWords.has(token));
+}
+
+function isRedundantDetail(base: string, detail: string) {
+  const baseKey = normalizeKey(base);
+  const detailKey = normalizeKey(detail);
+  if (!baseKey || !detailKey) return false;
+  if (baseKey.includes(detailKey) || detailKey.includes(baseKey)) return true;
+  const baseTokens = new Set(significantTokens(base));
+  const detailTokens = significantTokens(detail);
+  if (detailTokens.length === 0) return false;
+  const overlap = detailTokens.filter((token) => baseTokens.has(token) || [...baseTokens].some((baseToken) => baseToken.includes(token) || token.includes(baseToken))).length;
+  return overlap / detailTokens.length >= 0.7;
+}
+
+function buildOutfitLine(shoot: Shoot) {
+  const outfit = normalizeText(shoot.outfit);
+  const color = normalizeText(shoot.outfit_color);
+  if (!outfit && !color) return "";
+  if (!outfit) return color;
+  if (!color || isRedundantDetail(outfit, color)) return outfit;
+  return `${outfit}, main colors: ${color}`;
+}
+
+export function buildCompositionGoal(shoot: Shoot) {
+  const briefing = normalizeKey([
+    shoot.category,
+    shoot.location,
+    shoot.mood,
+    shoot.pose,
+    shoot.photo_style,
+    shoot.free_notes
+  ].filter(Boolean).join(" "));
+  const wantsOpenComposition = [
+    "ambiente",
+    "cenario",
+    "praia",
+    "beach",
+    "mar",
+    "ocean",
+    "pedra",
+    "rock",
+    "corpo inteiro",
+    "full body",
+    "ensaio",
+    "lifestyle"
+  ].some((keyword) => briefing.includes(keyword));
+
+  if (wantsOpenComposition) {
+    return "medium-wide lifestyle shot or full-body composition; subject and surrounding environment clearly visible; avoid tight close-up portrait unless explicitly requested";
+  }
+
+  return "professional portrait/lifestyle composition with enough space to show pose, styling and body proportions; avoid overly tight face-only crop unless explicitly requested";
 }
 
 function optionalReferenceBlock(referencePhotos: ReferencePhoto[]) {
@@ -54,7 +108,8 @@ function optionalReferenceBlock(referencePhotos: ReferencePhoto[]) {
 
 export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos: ReferencePhoto[]) {
   const tattoos = referencePhotos.some((photo) => photo.type.includes("tattoo"));
-  const outfit = uniqueParts([shoot.outfit, shoot.outfit_color]).join(", ");
+  const outfit = buildOutfitLine(shoot);
+  const compositionGoal = buildCompositionGoal(shoot);
   const scene = [
     categoryPrompts[shoot.category] ?? "Create a realistic professional photoshoot with premium composition, believable location, natural colors and high-end photography look.",
     shoot.location && `Location/scenario: ${shoot.location}.`,
@@ -82,10 +137,11 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
     tattoos ? "Preserve all visible tattoos accurately in the same body areas, with realistic placement, scale and orientation." : "",
     `Body and proportions: ${anatomyBlock}`,
     `Scene: ${scene}`,
-    styling ? `Clothing, hair and accessories: ${styling}` : "",
-    direction ? `Expression, pose and style: ${direction}` : "",
-    references ? `Optional references: ${references}` : "",
+    styling ? `Outfit and styling: ${styling} This outfit and styling has priority over clothing visible in face/body reference photos.` : "",
+    direction ? `Pose and expression: ${direction}` : "",
+    `Composition: ${compositionGoal}. If a beach, rock, ocean or environment is requested, show the beach/ocean/surroundings clearly and keep the framing open enough to see the body pose.`,
+    references ? `Optional references: ${references} Face references are for identity only, not clothing, background or crop.` : "Reference usage: face and body photos are for identity, age, hair and body proportions only, not clothing, background or crop.",
     "Photographic quality: realistic DSLR photo, professional photography, high detail, real human skin, realistic shadows, natural colors, believable background, no artificial AI look.",
-    "Negative instructions: Do not add text, labels, logos, watermarks or written words inside the image."
+    `Negative prompt: ${defaultNegativePrompt}. Do not copy hoodie, sweatshirt, casual clothing, indoor background or tight face crop from the uploaded identity references unless explicitly requested. Do not add text, labels, logos, watermarks or written words inside the image.`
   ].filter(Boolean).join("\n\n");
 }

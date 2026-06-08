@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buildCompositionGoal } from "@/lib/ai/buildPremiumPrompt";
 import { creditsPerImageForProvider, isRealProvider, normalizeProviderName, generateImagesWithProvider } from "@/lib/ai/generateImage";
 import { imageQuantityError, isValidImageQuantity } from "@/lib/ai/providerRules";
 import { qualityBlockMessage, summarizePhotoQuality } from "@/lib/ai/photoQuality";
@@ -124,6 +125,8 @@ export async function POST(request: Request) {
     const creditsCharged = trustedShoot.quantity * creditsPerImageForProvider(providerName);
     const nextBalance = credits.balance - creditsCharged;
     const now = new Date().toISOString();
+    const compositionGoal = buildCompositionGoal(trustedShoot);
+    const aspectRatio = compositionGoal.includes("medium-wide") || compositionGoal.includes("full-body") ? "4:3" : "3:4";
 
     if (realProvider) {
       if (!isAdmin || process.env.ALLOW_REAL_AI_FOR_ADMIN !== "true") {
@@ -173,6 +176,8 @@ export async function POST(request: Request) {
           provider: providerName,
           model: realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1",
           credits_charged: creditsCharged,
+          composition_goal: compositionGoal,
+          aspect_ratio: aspectRatio,
           primary_identity_photo_id: primaryReference?.id ?? null,
           reference_photo_ids: trustedReferencePhotos.map((photo) => photo.id),
           rejected_photo_ids: photoQuality.rejected.map((photo) => photo.id),

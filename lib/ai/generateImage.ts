@@ -1,4 +1,4 @@
-import { buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremiumPrompt";
+import { buildCompositionGoal, buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremiumPrompt";
 import { creditsPerImageForProvider, imageQuantityError, isRealProvider, isValidImageQuantity, normalizeProviderName } from "@/lib/ai/providerRules";
 import { mockProvider } from "@/lib/ai/providers/mockProvider";
 import { replicateFluxProvider } from "@/lib/ai/providers/replicateFluxProvider";
@@ -47,6 +47,8 @@ export async function generateImagesWithProvider(args: {
     throw new Error("Creditos insuficientes.");
   }
   const prompt = buildPremiumPrompt(args.shoot, args.client, args.referencePhotos);
+  const compositionGoal = buildCompositionGoal(args.shoot);
+  const aspectRatio = compositionGoal.includes("medium-wide") || compositionGoal.includes("full-body") ? "4:3" : "3:4";
   const negativePrompt = defaultNegativePrompt;
   const provider = selectProvider(providerName);
   const result = await provider.generate({
@@ -59,11 +61,13 @@ export async function generateImagesWithProvider(args: {
     referencePhotos: args.referencePhotos,
     referenceImages: args.referenceImageUrls ?? [],
     imageCount: args.shoot.quantity,
-    aspectRatio: "match_input_image",
+    aspectRatio,
     metadata: {
       clientName: args.client.name,
       category: args.shoot.category,
-      provider: provider.name
+      provider: provider.name,
+      composition_goal: compositionGoal,
+      aspect_ratio: aspectRatio
     }
   });
   const log: GenerationLog = {
@@ -80,6 +84,8 @@ export async function generateImagesWithProvider(args: {
       prompt,
       negative_prompt: negativePrompt,
       negativePrompt,
+      composition_goal: compositionGoal,
+      aspect_ratio: aspectRatio,
       provider: provider.name,
       model: result.model,
       primary_identity_photo_id: args.primaryIdentityPhotoId ?? null,
