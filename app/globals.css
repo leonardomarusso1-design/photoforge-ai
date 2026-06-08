@@ -47,3 +47,10 @@ select {
     linear-gradient(135deg, rgba(255,255,255,.09), rgba(255,255,255,.02)),
     repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0 10px, transparent 10px 20px);
 }
+
+.photo-noise {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255,255,255,.14), transparent 2px),
+    radial-gradient(circle at 80% 30%, rgba(255,255,255,.08), transparent 1px),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 1px, transparent 1px 8px);
+}
