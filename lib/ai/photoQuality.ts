@@ -67,14 +67,15 @@ export function auditReferencePhoto(input: PhotoAuditInput): PhotoAuditResult {
   const darkRatio = input.darkRatio ?? 0;
   const brightRatio = input.brightRatio ?? 0;
   const lightingQuality = darkRatio > 0.72 || brightRatio > 0.62 ? "poor" : darkRatio > 0.48 || brightRatio > 0.42 ? "medium" : "good";
+  const unusableLighting = darkRatio > 0.9 || brightRatio > 0.82;
 
   if (!resolutionOk) {
     issues.push("resolucao_baixa");
   }
   if (strongScreenshotEvidence) {
-    issues.push("captura_de_tela");
+    issues.push("possivel_captura_aceita");
   } else if (weakScreenshotEvidence) {
-    issues.push("possivel_captura_de_tela");
+    issues.push("aviso_de_formato_aceito");
   }
   if (lightingQuality === "poor") {
     issues.push(darkRatio > brightRatio ? "foto_muito_escura" : "foto_muito_estourada");
@@ -88,8 +89,8 @@ export function auditReferencePhoto(input: PhotoAuditInput): PhotoAuditResult {
   const optionalDetail = type === "important_detail" || type === "tattoo_arm" || type === "tattoo_leg" || type === "back" || type === "hair_detail";
   const optionalOutfit = type === "outfit_visual" || type === "outfit_reference";
   const hasFace = isFace || Boolean(input.width && input.height && !isBody);
-  const faceClear = isFace ? !isScreenshot && !extremelyLowResolution && lightingQuality !== "poor" : false;
-  const bodyVisible = isBody ? !isScreenshot && !extremelyLowResolution : false;
+  const faceClear = isFace ? !extremelyLowResolution && !unusableLighting : false;
+  const bodyVisible = isBody ? !extremelyLowResolution && !unusableLighting : false;
   let score = isFace ? 82 : isBody ? 76 : 78;
 
   if (isFace && !hasFace) {
@@ -107,8 +108,8 @@ export function auditReferencePhoto(input: PhotoAuditInput): PhotoAuditResult {
   if (!resolutionOk) score -= extremelyLowResolution ? 25 : 8;
   if (lightingQuality === "poor") score -= 22;
   if (lightingQuality === "medium") score -= 8;
-  if (strongScreenshotEvidence) score = Math.min(score, 40);
-  if (weakScreenshotEvidence) score = Math.min(score, 72);
+  if (strongScreenshotEvidence) score = Math.min(score, 72);
+  if (weakScreenshotEvidence) score = Math.min(score, 78);
   if (optionalDetail && (!resolutionOk || lightingQuality === "poor")) {
     score -= 10;
     issues.push("detalhe_pouco_nitido");
@@ -118,24 +119,25 @@ export function auditReferencePhoto(input: PhotoAuditInput): PhotoAuditResult {
     issues.push("visual_pouco_claro");
   }
 
-  if ((isFace && hasFace && faceClear && !strongScreenshotEvidence) || (isBody && bodyVisible && !strongScreenshotEvidence)) {
+  if ((isFace && hasFace && faceClear) || (isBody && bodyVisible)) {
     score = Math.max(score, lightingQuality === "poor" || extremelyLowResolution ? 58 : 65);
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
-  const status = isScreenshot && optionalPoseScenario ? "warning" : isScreenshot ? "rejected" : score >= 75 ? "approved" : score >= 55 ? "warning" : "rejected";
-  const canBePrimary = isFace && hasFace && faceClear && score >= 65 && !isScreenshot;
+  const unusableRequiredPhoto = (isFace || isBody) && (extremelyLowResolution || unusableLighting);
+  const status = unusableRequiredPhoto ? "rejected" : score >= 75 ? "approved" : "warning";
+  const canBePrimary = isFace && hasFace && status !== "rejected";
 
   let recommendation = isFace ? "Foto aprovada. Rosto visivel, nitidez aceitavel e boa referencia para identidade." : "Foto aprovada. Qualidade suficiente para orientar o ensaio.";
-  if (status === "warning" && isFace) recommendation = "Foto utilizavel, mas poderia melhorar. Use luz mais clara, evite filtros e aproxime um pouco mais o rosto.";
-  if (status === "warning" && isBody) recommendation = "Foto utilizavel para proporcao corporal. Para melhorar, use fundo mais limpo e mantenha o corpo inteiro visivel.";
+  if (status === "warning" && isFace) recommendation = "Foto utilizavel. Se quiser melhorar o resultado, use luz mais clara e evite filtros fortes.";
+  if (status === "warning" && isBody) recommendation = "Foto utilizavel para proporcao corporal. Para melhorar, mantenha o corpo inteiro visivel e com boa luz.";
   if (status === "warning" && !isFace && !isBody) recommendation = "Atencao: referencia utilizavel, mas uma imagem mais clara pode melhorar o resultado.";
-  if (status === "rejected") recommendation = "Foto reprovada. Envie uma nova imagem com rosto/corpo visivel, boa luz e sem elementos de interface.";
-  if (weakScreenshotEvidence) recommendation = "Essa imagem pode parecer uma captura de tela. Se for um print, envie a foto original para melhorar o resultado.";
-  if (isScreenshot) recommendation = "Foto reprovada: ha sinais claros de captura de tela ou interface. Envie a foto original.";
-  if (isScreenshot && optionalPoseScenario) recommendation = "Atencao: parece captura de tela, mas pode servir como inspiracao de pose ou cenario.";
+  if (status === "rejected") recommendation = "Foto reprovada apenas por qualidade minima. Envie uma nova imagem mais nitida e com rosto/corpo visivel.";
+  if (weakScreenshotEvidence) recommendation = "A imagem pode parecer captura de tela, mas foi aceita. Foto original costuma melhorar o resultado.";
+  if (isScreenshot) recommendation = "A imagem parece captura de tela, mas foi aceita. Se possivel, use a foto original para melhorar a identidade.";
+  if (isScreenshot && optionalPoseScenario) recommendation = "A imagem parece captura de tela, mas pode servir como inspiracao de pose ou cenario.";
   if (optionalDetail && status !== "approved") recommendation = "Essa referencia de detalhe esta fraca. A IA pode nao preservar esse detalhe corretamente.";
-  if (isFace && !canBePrimary && status !== "rejected") recommendation = "Atencao: a foto pode ajudar, mas envie um rosto mais nitido para preservar identidade.";
+  if (isFace && !canBePrimary && status !== "rejected") recommendation = "Atencao: a foto pode ajudar, mas uma foto de rosto mais nitida melhora a preservacao da identidade.";
 
   return {
     quality_status: status,
@@ -157,9 +159,7 @@ export function selectPrimaryIdentityImage(referencePhotos: ReferencePhoto[]) {
   const candidates = referencePhotos
     .filter((photo) => faceTypes.includes(photo.type))
     .filter((photo) => normalizeStatus(photo.quality_status) !== "rejected")
-    .filter((photo) => photo.can_be_primary_identity === true)
-    .filter((photo) => photo.is_screenshot !== true)
-    .filter((photo) => photo.face_clear !== false)
+    .filter((photo) => photo.can_be_primary_identity !== false)
     .sort((a, b) => {
       const typePriority = (photo: ReferencePhoto) => photo.type === "face_neutral" ? 0 : 1;
       return typePriority(a) - typePriority(b) || photoScore(b) - photoScore(a);
@@ -195,11 +195,11 @@ export function summarizePhotoQuality(referencePhotos: ReferencePhoto[]) {
 export function qualityBlockMessage(referencePhotos: ReferencePhoto[]) {
   const quality = summarizePhotoQuality(referencePhotos);
   if (quality.ok) return "";
-  const lines = ["Antes de gerar, corrija as fotos abaixo."];
+  const lines = ["Antes de gerar, envie as fotos obrigatorias ou troque apenas as imagens sem qualidade minima."];
   quality.missingTypes.forEach((type) => lines.push(`${type}: envie esta foto obrigatoria.`));
   [...quality.rejected, ...quality.pending].forEach((photo) => {
-    lines.push(`${photo.type}: ${photo.quality_recommendation || "envie uma foto original e nitida."}`);
+    lines.push(`${photo.type}: ${photo.quality_recommendation || "envie uma foto mais nitida."}`);
   });
-  if (!quality.primary) lines.push("Rosto: envie uma foto facial original e nitida para preservar identidade.");
+  if (!quality.primary) lines.push("Rosto: envie pelo menos uma foto facial utilizavel para preservar identidade.");
   return lines.join("\n");
 }
