@@ -3,6 +3,7 @@ import { clsx } from "clsx";
 import { Button, Card, StatusBadge } from "@/components/ui";
 
 type PlaceholderKind = "portrait" | "body-front" | "body-side" | "gallery" | "template" | "detail";
+type VisualTone = "cyan" | "warm" | "cool" | "editorial" | "soft" | "contrast" | "bright" | "delicate" | "urban";
 
 const kindGlow: Record<PlaceholderKind, string> = {
   portrait: "from-cyan/30 via-violet/20 to-gold/20",
@@ -13,10 +14,22 @@ const kindGlow: Record<PlaceholderKind, string> = {
   detail: "from-white/15 via-cyan/20 to-gold/20"
 };
 
-export function EditorialImagePlaceholder({ kind = "portrait", label, className }: { kind?: PlaceholderKind; label?: string; className?: string }) {
+const toneGlow: Record<VisualTone, string> = {
+  cyan: "from-cyan/30 via-violet/20 to-gold/20",
+  warm: "from-gold/35 via-red-300/15 to-violet/20",
+  cool: "from-cyan/25 via-blue-300/15 to-white/10",
+  editorial: "from-violet/35 via-cyan/15 to-black/20",
+  soft: "from-white/20 via-cyan/10 to-violet/15",
+  contrast: "from-white/20 via-cyan/20 to-black/40",
+  bright: "from-cyan/20 via-white/20 to-gold/20",
+  delicate: "from-gold/20 via-white/15 to-violet/20",
+  urban: "from-slate-400/20 via-cyan/15 to-violet/20"
+};
+
+export function EditorialImagePlaceholder({ kind = "portrait", tone, label, className }: { kind?: PlaceholderKind; tone?: VisualTone; label?: string; className?: string }) {
   return (
     <div className={clsx("relative overflow-hidden rounded-lg border border-white/10 bg-ink shadow-premium", className)}>
-      <div className={clsx("absolute inset-0 bg-gradient-to-br opacity-80", kindGlow[kind])} />
+      <div className={clsx("absolute inset-0 bg-gradient-to-br opacity-80", tone ? toneGlow[tone] : kindGlow[kind])} />
       <div className="absolute inset-0 photo-noise opacity-60" />
       <div className="absolute -left-8 top-8 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
       <div className="absolute bottom-0 right-0 h-44 w-28 bg-black/20 blur-2xl" />
@@ -40,7 +53,7 @@ export function EditorialImagePlaceholder({ kind = "portrait", label, className 
           {Array.from({ length: 4 }).map((_, index) => <div key={index} className="rounded-md border border-white/10 bg-white/10" />)}
         </div>
       ) : null}
-      {label ? <div className="absolute bottom-3 left-3 rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-xs text-slate-100 backdrop-blur">{label}</div> : null}
+      {label ? <div className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-xs text-slate-100 backdrop-blur">{label}</div> : null}
     </div>
   );
 }
@@ -68,10 +81,15 @@ export function HeroProductMockup() {
                 <h3 className="text-xl font-semibold">Ensaio Aniversario Luxo</h3>
               </div>
             </div>
-            <StatusBadge tone="good">25 creditos</StatusBadge>
+            <div className="flex flex-wrap gap-2"><StatusBadge tone="good">25 creditos</StatusBadge><Button variant="secondary">Revisar galeria</Button></div>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3">
-            {["Previa 01", "Previa 02", "Previa 03", "Previa 04"].map((label, index) => <EditorialImagePlaceholder key={label} kind={index % 2 === 0 ? "portrait" : "template"} label={label} className="aspect-[3/4]" />)}
+            {[
+              ["warm", "portrait"],
+              ["cool", "template"],
+              ["editorial", "body-front"],
+              ["delicate", "portrait"]
+            ].map(([tone, kind], index) => <EditorialImagePlaceholder key={index} kind={kind as PlaceholderKind} tone={tone as VisualTone} className="aspect-[3/4] ring-1 ring-white/5" />)}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <StatusBadge tone="good">4 imagens geradas</StatusBadge>
@@ -83,16 +101,43 @@ export function HeroProductMockup() {
   );
 }
 
-export function TemplatePreviewCard({ title, description, badge, kind = "template" }: { title: string; description: string; badge: string; kind?: PlaceholderKind }) {
+export function TemplatePreviewCard({ title, description, badge, kind = "template", tone }: { title: string; description: string; badge: string; kind?: PlaceholderKind; tone?: VisualTone }) {
   return (
     <Card className="overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50">
-      <EditorialImagePlaceholder kind={kind} label={badge} className="aspect-[4/5] rounded-b-none border-x-0 border-t-0" />
+      <EditorialImagePlaceholder kind={kind} tone={tone} label={badge} className="aspect-[4/5] rounded-b-none border-x-0 border-t-0" />
       <div className="p-4">
-        <StatusBadge tone="default">{badge}</StatusBadge>
-        <h3 className="mt-3 font-semibold">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
+        <h3 className="font-semibold">{title}</h3>
+        <p className="mt-2 text-sm leading-5 text-slate-400">{description}</p>
       </div>
     </Card>
+  );
+}
+
+export function OrderToDeliveryMockup() {
+  const checklist = ["Fotos obrigatorias", "Consentimento", "Creditos", "Estilo escolhido"];
+  return (
+    <div className="rounded-lg border border-white/10 bg-panel/95 p-4 shadow-premium">
+      <div className="grid gap-4 lg:grid-cols-4">
+        <Card className="bg-ink/70">
+          <p className="text-xs uppercase text-slate-500">Cliente</p>
+          <div className="mt-4 flex items-center gap-3"><ClientAvatar name="Marina Alves" /><div><p className="font-semibold">Marina Alves</p><p className="text-xs text-slate-400">Aguardando fotos</p></div></div>
+        </Card>
+        <Card className="bg-ink/70">
+          <p className="text-xs uppercase text-slate-500">Fotos</p>
+          <div className="mt-4 grid grid-cols-4 gap-2">{["portrait", "portrait", "body-front", "body-side"].map((kind, index) => <EditorialImagePlaceholder key={index} kind={kind as PlaceholderKind} tone={index % 2 ? "cool" : "soft"} className="aspect-[3/4]" />)}</div>
+          <div className="mt-3"><StatusBadge tone="good">Todas enviadas</StatusBadge></div>
+        </Card>
+        <Card className="bg-ink/70">
+          <p className="text-xs uppercase text-slate-500">Geracao</p>
+          <div className="mt-4 grid gap-2">{checklist.map((item) => <div key={item} className="flex items-center justify-between rounded-lg border border-line bg-white/[.03] px-3 py-2 text-xs"><span>{item}</span><StatusBadge tone="good">OK</StatusBadge></div>)}</div>
+        </Card>
+        <Card className="bg-ink/70">
+          <p className="text-xs uppercase text-slate-500">Entrega</p>
+          <div className="mt-4 grid grid-cols-4 gap-2">{["warm", "cool", "editorial", "bright"].map((tone, index) => <EditorialImagePlaceholder key={index} tone={tone as VisualTone} kind="template" className="aspect-[3/4]" />)}</div>
+          <Button variant="secondary" className="mt-4 w-full">Baixar selecao</Button>
+        </Card>
+      </div>
+    </div>
   );
 }
 

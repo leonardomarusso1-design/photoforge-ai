@@ -1,14 +1,14 @@
 import { ArrowRight, CheckCircle2, LockKeyhole, ShieldCheck, Sparkles, WalletCards, Workflow } from "lucide-react";
 import { Button, Card, Logo, SectionHeader, StatusBadge } from "@/components/ui";
-import { EditorialImagePlaceholder, GeneratedGalleryPreview, HeroProductMockup, MiniClientCard, RequiredPhotosPreview, TemplateChipsPreview, TemplatePreviewCard, VisualStepCard } from "@/components/visual";
+import { EditorialImagePlaceholder, GeneratedGalleryPreview, HeroProductMockup, MiniClientCard, OrderToDeliveryMockup, RequiredPhotosPreview, TemplateChipsPreview, TemplatePreviewCard, VisualStepCard } from "@/components/visual";
 
 const categories = [
-  ["Aniversario", "Baloes, vestido elegante, luz de estudio e clima de celebracao.", "Celebracao", "template"],
-  ["Profissional", "Retratos corporativos para perfil, autoridade e posicionamento.", "Corporativo", "portrait"],
-  ["Casal", "Fotos com clima natural, conexao e composicao elegante.", "Editorial", "template"],
-  ["Infantil", "Cenarios delicados, seguros e com estetica suave.", "Suave", "portrait"],
-  ["Fitness", "Visual de academia, postura forte e iluminacao atletica.", "Atletico", "body-front"],
-  ["Praia", "Luz natural, cenario aberto e estetica lifestyle.", "Lifestyle", "body-side"]
+  ["Aniversario", "Baloes, vestido elegante, luz de estudio e clima de celebracao.", "Celebracao", "template", "warm"],
+  ["Profissional", "Retratos corporativos para perfil, autoridade e posicionamento.", "Corporativo", "portrait", "cool"],
+  ["Casal", "Fotos com clima natural, conexao e composicao elegante.", "Editorial", "template", "editorial"],
+  ["Infantil", "Cenarios delicados, seguros e com estetica suave.", "Suave", "portrait", "soft"],
+  ["Fitness", "Visual de academia, postura forte e iluminacao atletica.", "Atletico", "body-front", "contrast"],
+  ["Praia", "Luz natural, cenario aberto e estetica lifestyle.", "Lifestyle", "body-side", "bright"]
 ] as const;
 
 const photoGuides = [
@@ -36,7 +36,8 @@ const faqs = [
   ["Posso usar para clientes reais?", "Sim, desde que voce tenha autorizacao de uso de imagem da pessoa fotografada."],
   ["As imagens ficam salvas?", "Sim. As imagens ficam vinculadas ao usuario, cliente e ensaio."],
   ["Posso excluir fotos?", "Sim. A galeria permite remover imagens do fluxo visivel."],
-  ["A IA ja esta integrada?", "A estrutura esta preparada para geracao real, mas a liberacao publica deve acontecer com seguranca, testes e controle de custo."],
+  ["A IA ja esta integrada?", "O app ja foi pensado para geracao real. A liberacao publica deve acontecer somente apos testes de qualidade, controle de creditos e seguranca de custo."],
+  ["O app garante que o rosto fique identico?", "Nao. O objetivo e preservar identidade com o maximo de qualidade possivel, mas toda geracao com IA precisa de revisao humana antes da entrega."],
   ["O app substitui edicao manual?", "Ele acelera a criacao e organizacao, mas nao promete resultado perfeito nem substitui revisao profissional quando necessario."]
 ];
 
@@ -71,7 +72,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <SectionHeader eyebrow="Previews visuais" title="Veja o que voce pode criar com um fluxo guiado" text="Escolha o tipo de ensaio, envie as referencias certas e mantenha tudo organizado por cliente." />
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map(([title, description, badge, kind]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} kind={kind} />)}
+            {categories.map(([title, description, badge, kind, tone]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} kind={kind} tone={tone} />)}
           </div>
         </div>
       </section>
@@ -83,6 +84,13 @@ export default function LandingPage() {
           <VisualStepCard title="Envie as fotos obrigatorias" text="O app mostra quais fotos faltam e so libera quando existem referencias reais."><RequiredPhotosPreview /></VisualStepCard>
           <VisualStepCard title="Escolha o estilo do ensaio" text="Use categorias, roupas, cenario, pose e templates para orientar a criacao."><TemplateChipsPreview /></VisualStepCard>
           <VisualStepCard title="Gere, revise e entregue" text="Revise a galeria, favorite imagens e baixe os resultados para a cliente."><GeneratedGalleryPreview /></VisualStepCard>
+        </div>
+      </section>
+
+      <section className="border-y border-line bg-panel/60 px-4 py-14 md:px-8">
+        <div className="mx-auto max-w-7xl">
+          <SectionHeader eyebrow="Fluxo completo" title="Do pedido da cliente ate a entrega final" text="O PhotoForge organiza cada etapa para voce nao depender de conversas perdidas, arquivos soltos e prompts improvisados." />
+          <div className="mt-8"><OrderToDeliveryMockup /></div>
         </div>
       </section>
 
@@ -105,7 +113,10 @@ export default function LandingPage() {
       <section className="mx-auto max-w-7xl px-4 py-14 md:px-8">
         <SectionHeader eyebrow="Templates" title="Templates prontos para vender mais rapido" text="Use ideias de ensaio como ponto de partida para criar ofertas mais claras e entregaveis mais consistentes." />
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {templates.map(([title, description, badge], index) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} kind={index % 3 === 0 ? "template" : index % 3 === 1 ? "portrait" : "body-front"} />)}
+          {templates.map(([title, description, badge], index) => {
+            const tones = ["warm", "cool", "editorial", "soft", "contrast", "bright", "delicate", "urban"] as const;
+            return <TemplatePreviewCard key={title} title={title} description={description} badge={badge} kind={index % 3 === 0 ? "template" : index % 3 === 1 ? "portrait" : "body-front"} tone={tones[index]} />;
+          })}
         </div>
       </section>
 
@@ -120,16 +131,26 @@ export default function LandingPage() {
         <SectionHeader eyebrow="Planos" title="Escolha um caminho para comecar" />
         <div className="mt-8 grid gap-5 md:grid-cols-3">
           {[
-            ["Comunidade", "Melhor para membros", "Para alunos e membros com creditos mais baratos.", ["Creditos com condicao especial", "Templates exclusivos futuramente", "Ideal para aprender vendendo"]],
-            ["Publico", "Comece simples", "Para quem quer testar e comprar creditos avulsos.", ["Acesso normal ao app", "Fluxo completo de ensaios", "Bom para validar a oferta"]],
-            ["Pro", "Uso profissional", "Para quem vai vender em volume e precisa de mais controle.", ["Maior volume de operacao", "Gestao avancada futuramente", "Pensado para recorrencia"]]
-          ].map(([plan, badge, text, bullets]) => <Card key={plan as string} className="hover:border-cyan/40"><StatusBadge tone={plan === "Comunidade" ? "good" : "default"}>{badge as string}</StatusBadge><h3 className="mt-4 text-2xl font-semibold">{plan as string}</h3><p className="mt-3 text-sm leading-6 text-slate-400">{text as string}</p><div className="mt-5 grid gap-2">{(bullets as string[]).map((item) => <div key={item} className="flex gap-2 text-sm text-slate-300"><CheckCircle2 className="mt-0.5 h-4 w-4 text-cyan" />{item}</div>)}</div><Button href="/register" className="mt-6 w-full" variant={plan === "Publico" ? "primary" : "secondary"}>Comecar</Button></Card>)}
+            ["Comunidade", "Melhor para membros", "Para alunos que querem vender ensaios com IA pagando menos por creditos.", ["Creditos com condicao especial", "Templates e atualizacoes primeiro", "Ideal para aprender vendendo"], "Entrar como membro"],
+            ["Publico", "Comece simples", "Para testar a plataforma e comprar creditos avulsos sem compromisso.", ["Acesso ao fluxo completo", "Creditos avulsos", "Bom para validar a oferta"], "Comecar teste"],
+            ["Pro", "Uso profissional", "Para quem pretende atender mais clientes e operar com volume.", ["Mais controle de operacao", "Historico e galeria organizados", "Pensado para escala futura"], "Quero usar no volume"]
+          ].map(([plan, badge, text, bullets, cta]) => <Card key={plan as string} className="hover:border-cyan/40"><StatusBadge tone={plan === "Comunidade" ? "good" : "default"}>{badge as string}</StatusBadge><h3 className="mt-4 text-2xl font-semibold">{plan as string}</h3><p className="mt-3 text-sm leading-6 text-slate-400">{text as string}</p><div className="mt-5 grid gap-2">{(bullets as string[]).map((item) => <div key={item} className="flex gap-2 text-sm text-slate-300"><CheckCircle2 className="mt-0.5 h-4 w-4 text-cyan" />{item}</div>)}</div><Button href="/register" className="mt-6 w-full" variant={plan === "Publico" ? "primary" : "secondary"}>{cta as string}</Button></Card>)}
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 pb-16 md:px-8">
         <SectionHeader eyebrow="FAQ" title="Perguntas comuns antes de comecar" />
         <div className="mt-8 grid gap-4 md:grid-cols-2">{faqs.map(([question, answer]) => <Card key={question}><h3 className="font-semibold">{question}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{answer}</p></Card>)}</div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-16 md:px-8">
+        <Card className="grid gap-6 border-cyan/25 bg-cyan/10 p-8 md:grid-cols-[1fr_auto] md:items-center">
+          <div>
+            <h2 className="text-2xl font-semibold md:text-3xl">Seu proximo ensaio pode sair de um fluxo organizado, nao de um prompt solto</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">Comece criando sua conta, cadastre uma cliente e teste o processo completo dentro do PhotoForge AI.</p>
+          </div>
+          <div className="flex flex-wrap gap-3"><Button href="/register">Comecar agora</Button><Button href="/login" variant="secondary">Fazer login</Button></div>
+        </Card>
       </section>
 
       <footer className="mx-auto flex max-w-7xl flex-wrap justify-between gap-4 border-t border-line px-4 py-8 text-sm text-slate-500 md:px-8">
