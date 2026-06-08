@@ -102,7 +102,7 @@ create table if not exists public.shoots (
   negative_prompt text,
   credits_used int not null default 0 check (credits_used >= 0),
   provider text not null default 'mock',
-  quantity int not null default 4 check (quantity in (4, 8, 16)),
+  quantity int not null default 4 check (quantity in (1, 2, 4, 8, 16)),
   consent_confirmed boolean not null default false,
   consent_confirmed_at timestamptz,
   created_at timestamptz not null default now(),

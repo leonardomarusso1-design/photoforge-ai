@@ -389,16 +389,18 @@ export function ClientFormPage() {
 
 export function ClientDetailPage({ id }: { id: string }) {
   const { state, reload, supabase, loadError } = useDemoState();
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editError, setEditError] = useState("");
   const [form, setForm] = useState({ name: "", whatsapp: "", email: "", city: "", age: "", notes: "", status: "new" as ClientStatus });
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
-  const client = state.clients.find((item) => item.id === id);
+  const client = state.clients.find((item) => item.id === id && !item.deleted_at);
   if (!client) return <EmptyState title="Cliente nao encontrado" text="Esse registro nao existe no estado demo." />;
   const currentClient = client;
-  const shoots = state.shoots.filter((shoot) => shoot.client_id === id);
+  const shoots = state.shoots.filter((shoot) => shoot.client_id === id && !shoot.deleted_at);
   const images = state.generatedImages.filter((image) => image.client_id === id && !image.deleted_at);
 
   function startEditing() {
@@ -453,9 +455,48 @@ export function ClientDetailPage({ id }: { id: string }) {
     await reload();
   }
 
+  async function deleteClient() {
+    const confirmed = window.confirm("Excluir esta cliente? Os ensaios e imagens vinculados tambem sairao do dashboard e das listas.");
+    if (!confirmed) return;
+    setEditError("");
+    setDeleting(true);
+    const userId = await getCurrentUserId(supabase);
+    const deletedAt = new Date().toISOString();
+
+    const imagesUpdate = await supabase
+      .from("generated_images")
+      .update({ deleted_at: deletedAt })
+      .eq("client_id", currentClient.id)
+      .eq("user_id", userId);
+
+    const shootsUpdate = await supabase
+      .from("shoots")
+      .update({ deleted_at: deletedAt, status: "archived", updated_at: deletedAt })
+      .eq("client_id", currentClient.id)
+      .eq("user_id", userId);
+
+    const clientUpdate = await supabase
+      .from("clients")
+      .update({ deleted_at: deletedAt, status: "cancelled", updated_at: deletedAt })
+      .eq("id", currentClient.id)
+      .eq("user_id", userId);
+
+    setDeleting(false);
+    const error = imagesUpdate.error || shootsUpdate.error || clientUpdate.error;
+    if (error) {
+      logSupabaseError("Supabase error", error);
+      setEditError(process.env.NODE_ENV === "development" ? `Erro do Supabase: ${error.message}` : "Nao foi possivel excluir a cliente.");
+      return;
+    }
+
+    router.push("/app/clients");
+    await reload();
+  }
+
   return (
     <>
-      <PageTitle title={currentClient.name} text={`${currentClient.whatsapp} - ${currentClient.city || "Cidade nao informada"}`} action={<div className="flex gap-2"><Button variant="secondary" onClick={startEditing}>Editar</Button><Button href={`/app/shoots/new?client=${currentClient.id}`}>Novo ensaio</Button></div>} />
+      <PageTitle title={currentClient.name} text={`${currentClient.whatsapp} - ${currentClient.city || "Cidade nao informada"}`} action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={startEditing}>Editar</Button><Button variant="danger" disabled={deleting} onClick={deleteClient}><Trash2 className="h-4 w-4" /> {deleting ? "Excluindo..." : "Excluir"}</Button><Button href={`/app/shoots/new?client=${currentClient.id}`}>Novo ensaio</Button></div>} />
+      {editError && !editing ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{editError}</div> : null}
       <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
         <Card>
           <h2 className="text-lg font-semibold">Dados da cliente</h2>
@@ -579,7 +620,8 @@ export function ShootCreatePage() {
 
     if (error || !shoot) {
       logSupabaseError("Supabase error", error);
-      setFlowError(process.env.NODE_ENV === "development" && error?.message ? `Erro do Supabase: ${error.message}` : "Nao foi possivel salvar o ensaio no Supabase.");
+      const quantityConstraint = error?.message?.includes("shoots_quantity_check") || error?.message?.includes("violates check constraint");
+      setFlowError(quantityConstraint ? "O Supabase ainda precisa liberar quantidade 1 e 2 para teste real. Rode o arquivo supabase/fix-shoot-quantity-real-ai.sql no SQL Editor." : process.env.NODE_ENV === "development" && error?.message ? `Erro do Supabase: ${error.message}` : "Nao foi possivel salvar o ensaio no Supabase.");
       return null;
     }
 
@@ -857,7 +899,9 @@ function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { 
 
 export function ShootDetailPage({ id }: { id: string }) {
   const { state, reload, supabase, loadError } = useDemoState();
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [editError, setEditError] = useState("");
@@ -865,7 +909,7 @@ export function ShootDetailPage({ id }: { id: string }) {
   const [uploadPreviews, setUploadPreviews] = useState<Record<string, string>>({});
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
-  const shoot = state.shoots.find((item) => item.id === id);
+  const shoot = state.shoots.find((item) => item.id === id && !item.deleted_at);
   if (!shoot) return <EmptyState title="Ensaio nao encontrado" text="Esse registro nao existe no estado demo." />;
   const currentShoot = shoot;
   const client = state.clients.find((item) => item.id === shoot.client_id)!;
@@ -1017,9 +1061,41 @@ export function ShootDetailPage({ id }: { id: string }) {
     await reload();
     setTimeout(() => reload(), 700);
   }
+
+  async function deleteShoot() {
+    const confirmed = window.confirm("Excluir este ensaio? As imagens vinculadas tambem sairao da galeria e do dashboard.");
+    if (!confirmed) return;
+    setError("");
+    setDeleting(true);
+    const userId = await getCurrentUserId(supabase);
+    const deletedAt = new Date().toISOString();
+
+    const imagesUpdate = await supabase
+      .from("generated_images")
+      .update({ deleted_at: deletedAt })
+      .eq("shoot_id", currentShoot.id)
+      .eq("user_id", userId);
+
+    const shootUpdate = await supabase
+      .from("shoots")
+      .update({ deleted_at: deletedAt, status: "archived", updated_at: deletedAt })
+      .eq("id", currentShoot.id)
+      .eq("user_id", userId);
+
+    setDeleting(false);
+    const deleteError = imagesUpdate.error || shootUpdate.error;
+    if (deleteError) {
+      logSupabaseError("Supabase error", deleteError);
+      setError(process.env.NODE_ENV === "development" ? `Erro do Supabase: ${deleteError.message}` : "Nao foi possivel excluir o ensaio.");
+      return;
+    }
+
+    router.push("/app/shoots");
+    await reload();
+  }
   return (
     <>
-      <PageTitle title={shoot.title} text={`${client.name} - ${shoot.category} - ${shoot.quantity} imagens`} action={<div className="flex gap-2"><Button variant="secondary" disabled={shoot.status === "completed"} onClick={startEditing}>Editar</Button><Button disabled={busy || shoot.status === "completed"} onClick={generate}>{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Gerar imagens</Button></div>} />
+      <PageTitle title={shoot.title} text={`${client.name} - ${shoot.category} - ${shoot.quantity} imagens`} action={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={shoot.status === "completed"} onClick={startEditing}>Editar</Button><Button variant="danger" disabled={deleting || busy} onClick={deleteShoot}><Trash2 className="h-4 w-4" /> {deleting ? "Excluindo..." : "Excluir"}</Button><Button disabled={busy || deleting || shoot.status === "completed"} onClick={generate}>{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Gerar imagens</Button></div>} />
       {error ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div> : null}
       {state.generationConfig.realAiEnabledForAdmin ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-gold">Modo teste com IA real ativo. Cada imagem consome 10 créditos e pode gerar custo na API.</div> : null}
       <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
