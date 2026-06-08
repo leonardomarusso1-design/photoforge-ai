@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { creditsPerImageForProvider, isRealProvider, normalizeProviderName, generateImagesWithProvider } from "@/lib/ai/generateImage";
 import { imageQuantityError, isValidImageQuantity } from "@/lib/ai/providerRules";
+import { qualityBlockMessage, summarizePhotoQuality } from "@/lib/ai/photoQuality";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Client, ReferencePhoto, Shoot } from "@/lib/types";
@@ -113,6 +114,11 @@ export async function POST(request: Request) {
     const trustedShoot = { ...shoot, user_id: user.id } as Shoot;
     const trustedClient = client as Client;
     const trustedReferencePhotos = (referencePhotos ?? []) as ReferencePhoto[];
+    const photoQuality = summarizePhotoQuality(trustedReferencePhotos);
+    if (!photoQuality.ok) {
+      return NextResponse.json({ error: qualityBlockMessage(trustedReferencePhotos) }, { status: 400 });
+    }
+    const primaryReference = photoQuality.primary;
     const providerName = normalizeProviderName(process.env.AI_PROVIDER || trustedShoot.provider || "mock");
     const realProvider = isRealProvider(providerName);
     const creditsCharged = trustedShoot.quantity * creditsPerImageForProvider(providerName);
@@ -135,10 +141,6 @@ export async function POST(request: Request) {
 
     const referenceImageUrls: string[] = [];
     if (realProvider) {
-      const primaryReference =
-        trustedReferencePhotos.find((photo) => photo.type === "face_neutral") ??
-        trustedReferencePhotos.find((photo) => photo.type === "face_smiling") ??
-        trustedReferencePhotos[0];
       const referencePathOrUrl = primaryReference?.storage_path || primaryReference?.file_url;
       if (!referencePathOrUrl) {
         return NextResponse.json({ error: "Nao foi possivel preparar a foto principal para geracao real." }, { status: 400 });
@@ -164,7 +166,19 @@ export async function POST(request: Request) {
         shoot_id: trustedShoot.id,
         provider: providerName,
         model: realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1",
-        request_payload: { image_count: trustedShoot.quantity, quantity: trustedShoot.quantity, shoot_id: trustedShoot.id, provider: providerName, model: realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1", credits_charged: creditsCharged },
+        request_payload: {
+          image_count: trustedShoot.quantity,
+          quantity: trustedShoot.quantity,
+          shoot_id: trustedShoot.id,
+          provider: providerName,
+          model: realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1",
+          credits_charged: creditsCharged,
+          primary_identity_photo_id: primaryReference?.id ?? null,
+          reference_photo_ids: trustedReferencePhotos.map((photo) => photo.id),
+          rejected_photo_ids: photoQuality.rejected.map((photo) => photo.id),
+          warning_photo_ids: photoQuality.warning.map((photo) => photo.id),
+          quality_summary: photoQuality.summary
+        },
         status: "pending",
         credits_charged: creditsCharged,
         cost_estimate: realProvider ? trustedShoot.quantity * 0.04 : trustedShoot.quantity
@@ -226,7 +240,12 @@ export async function POST(request: Request) {
       credits,
       providerName,
       isAdmin,
-      creditCost: creditsCharged
+      creditCost: creditsCharged,
+      qualityLog: photoQuality.summary,
+      primaryIdentityPhotoId: primaryReference?.id ?? null,
+      referencePhotoIds: trustedReferencePhotos.map((photo) => photo.id),
+      rejectedPhotoIds: photoQuality.rejected.map((photo) => photo.id),
+      warningPhotoIds: photoQuality.warning.map((photo) => photo.id)
     });
     const { error: imagesError } = await admin.from("generated_images").insert(
       result.images.map((image) => ({

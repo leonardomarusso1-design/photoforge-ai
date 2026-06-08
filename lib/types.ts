@@ -8,7 +8,10 @@ export type ClientStatus =
   | "delivered"
   | "cancelled";
 export type ShootStatus = "draft" | "ready" | "generating" | "completed" | "failed" | "delivered" | "archived";
-export type QualityStatus = "boa" | "media" | "ruim";
+export type LegacyQualityStatus = "boa" | "media" | "ruim";
+export type PhotoQualityStatus = "pending" | "approved" | "warning" | "rejected";
+export type LightingQuality = "good" | "medium" | "poor" | LegacyQualityStatus;
+export type QualityStatus = LegacyQualityStatus | PhotoQualityStatus;
 export type GenerationQuantity = 1 | 2 | 4 | 8 | 16;
 
 export type Profile = {
@@ -83,10 +86,19 @@ export type ReferencePhoto = {
   storage_path?: string;
   file_url: string;
   quality_status: QualityStatus;
+  quality_score?: number | null;
+  quality_issues?: string[] | null;
+  quality_recommendation?: string | null;
+  can_be_primary_identity?: boolean | null;
+  is_screenshot?: boolean | null;
+  has_face?: boolean | null;
+  face_clear?: boolean | null;
   face_visible?: boolean;
   body_visible?: boolean;
-  lighting_quality?: QualityStatus;
+  resolution_ok?: boolean | null;
+  lighting_quality?: LightingQuality | null;
   notes?: string;
+  audited_at?: string | null;
   created_at: string;
 };
 

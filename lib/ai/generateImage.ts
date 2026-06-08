@@ -20,6 +20,11 @@ export async function generateImagesWithProvider(args: {
   providerName?: string;
   isAdmin?: boolean;
   creditCost?: number;
+  qualityLog?: unknown;
+  primaryIdentityPhotoId?: string | null;
+  referencePhotoIds?: string[];
+  rejectedPhotoIds?: string[];
+  warningPhotoIds?: string[];
 }) {
   if (!args.shoot.consent_confirmed) {
     throw new Error("Confirme que voce tem autorizacao de uso da imagem antes de gerar.");
@@ -67,7 +72,22 @@ export async function generateImagesWithProvider(args: {
     shoot_id: args.shoot.id,
     provider: result.provider,
     model: result.model,
-    request_payload: { image_count: args.shoot.quantity, quantity: args.shoot.quantity, credits_charged: creditCost, prompt, negativePrompt, provider: provider.name, model: result.model },
+    request_payload: {
+      image_count: args.shoot.quantity,
+      quantity: args.shoot.quantity,
+      credits_charged: creditCost,
+      prompt_final: prompt,
+      prompt,
+      negative_prompt: negativePrompt,
+      negativePrompt,
+      provider: provider.name,
+      model: result.model,
+      primary_identity_photo_id: args.primaryIdentityPhotoId ?? null,
+      reference_photo_ids: args.referencePhotoIds ?? args.referencePhotos.map((photo) => photo.id),
+      rejected_photo_ids: args.rejectedPhotoIds ?? [],
+      warning_photo_ids: args.warningPhotoIds ?? [],
+      quality_summary: args.qualityLog ?? null
+    },
     response_payload: { images: result.images.length, raw: result.rawResponse },
     status: "success",
     credits_charged: creditCost,

@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BarChart3, Camera, CheckCircle2, Copy, Download, Heart, Image as ImageIcon, Mail, MessageCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Users, WalletCards } from "lucide-react";
 import { categories, optionalPhotoTypes, requiredPhotoTypes } from "@/lib/demoData";
-import type { Client, ClientStatus, DemoState, GeneratedImage, GenerationQuantity, QualityStatus, ReferencePhoto, Shoot } from "@/lib/types";
+import type { Client, ClientStatus, DemoState, GeneratedImage, GenerationQuantity, ReferencePhoto, Shoot } from "@/lib/types";
 import { buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremiumPrompt";
+import { auditReferencePhoto, summarizePhotoQuality } from "@/lib/ai/photoQuality";
 import { Button, Card, EmptyState, Field, inputClass, MetricCard, StatusBadge } from "@/components/ui";
 import { ClientAvatar, EditorialImagePlaceholder, EmptyGalleryState, MiniGalleryActions, RecentShootPreview, UploadKindForType, UploadVisualCard } from "@/components/visual";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -174,6 +175,62 @@ function creditCostForQuantity(state: DemoState, quantity: number) {
 
 function quantitySelectOptions(state: DemoState) {
   return state.generationConfig.quantityOptions.length > 0 ? state.generationConfig.quantityOptions : defaultGenerationConfig.quantityOptions;
+}
+
+function qualityStatusTone(status?: string | null): "default" | "good" | "warn" | "bad" {
+  if (status === "approved" || status === "boa") return "good";
+  if (status === "warning" || status === "media") return "warn";
+  if (status === "rejected" || status === "ruim") return "bad";
+  return "default";
+}
+
+function qualityStatusLabel(status?: string | null) {
+  if (status === "approved" || status === "boa") return "Aprovada";
+  if (status === "warning" || status === "media") return "Atencao";
+  if (status === "rejected" || status === "ruim") return "Reprovada";
+  return "Pendente";
+}
+
+async function inspectImageFile(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const width = bitmap.width;
+  const height = bitmap.height;
+  const canvas = document.createElement("canvas");
+  const size = 96;
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    return { width, height };
+  }
+  context.drawImage(bitmap, 0, 0, size, size);
+  const data = context.getImageData(0, 0, size, size).data;
+  let dark = 0;
+  let bright = 0;
+  let topDelta = 0;
+  const topRows = 10;
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const index = (y * size + x) * 4;
+      const luminance = 0.2126 * data[index] + 0.7152 * data[index + 1] + 0.0722 * data[index + 2];
+      if (luminance < 45) dark += 1;
+      if (luminance > 235) bright += 1;
+      if (y < topRows && x > 0) {
+        const previous = index - 4;
+        const previousLuminance = 0.2126 * data[previous] + 0.7152 * data[previous + 1] + 0.0722 * data[previous + 2];
+        topDelta += Math.abs(luminance - previousLuminance);
+      }
+    }
+  }
+  bitmap.close();
+  return {
+    width,
+    height,
+    darkRatio: dark / (size * size),
+    brightRatio: bright / (size * size),
+    topEdgeContrast: topDelta / (topRows * Math.max(size - 1, 1))
+  };
 }
 
 export function DashboardPage() {
@@ -560,7 +617,8 @@ export function ShootCreatePage() {
   const client = state.clients.find((item) => item.id === selectedClient);
   const existingRefs = draftShoot ? state.referencePhotos.filter((photo) => photo.shoot_id === draftShoot.id) : [];
   const currentRefs = [...existingRefs, ...Object.values(uploadedPhotos)];
-  const readyPhotos = Boolean(draftShoot) && requiredPhotoTypes.every((photo) => currentRefs.some((ref) => ref.type === photo.type));
+  const photoQuality = summarizePhotoQuality(currentRefs);
+  const readyPhotos = Boolean(draftShoot) && photoQuality.ok;
   const selectedQuantity = (form.quantity as GenerationQuantity) || quantitySelectOptions(state)[0];
   const selectedCreditCost = creditCostForQuantity(state, selectedQuantity);
   const ready = Boolean(client && form.title && form.category && readyPhotos && form.consent_confirmed && state.credits.balance >= selectedCreditCost);
@@ -629,7 +687,7 @@ export function ShootCreatePage() {
     return shoot as Shoot;
   }
 
-  async function uploadReferencePhoto(type: string, file: File, quality: QualityStatus = "boa") {
+  async function uploadReferencePhoto(type: string, file: File) {
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setFlowError("Use apenas imagens JPG, PNG ou WEBP.");
       return;
@@ -641,6 +699,13 @@ export function ShootCreatePage() {
     const shoot = await ensureDraftShoot();
     if (!shoot || !client) return;
     const userId = await getCurrentUserId(supabase);
+    const imageInspection = await inspectImageFile(file);
+    const audit = auditReferencePhoto({
+      type,
+      fileName: file.name,
+      fileSize: file.size,
+      ...imageInspection
+    });
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
     const storagePath = `${userId}/${client.id}/${shoot.id}/${type}/${Date.now()}-${safeName}`;
     const storage = supabase.storage.from("client-reference-photos");
@@ -666,10 +731,19 @@ export function ShootCreatePage() {
       type,
       storage_path: storagePath,
       file_url: storagePath,
-      quality_status: quality,
-      face_visible: type.includes("face"),
-      body_visible: type.includes("body") || type.includes("full_body"),
-      lighting_quality: quality,
+      quality_status: audit.quality_status,
+      quality_score: audit.quality_score,
+      quality_issues: audit.quality_issues,
+      quality_recommendation: audit.quality_recommendation,
+      can_be_primary_identity: audit.can_be_primary_identity,
+      is_screenshot: audit.is_screenshot,
+      has_face: audit.has_face,
+      face_clear: audit.face_clear,
+      face_visible: audit.has_face,
+      body_visible: audit.body_visible,
+      resolution_ok: audit.resolution_ok,
+      lighting_quality: audit.lighting_quality,
+      audited_at: audit.audited_at,
       notes: file.name
     };
 
@@ -679,8 +753,8 @@ export function ShootCreatePage() {
       .select("*")
       .single();
 
-    if (error?.message?.includes("'body_visible' column") || error?.message?.includes("'face_visible' column") || error?.message?.includes("'lighting_quality' column") || error?.message?.includes("'storage_path' column")) {
-      const { face_visible, body_visible, lighting_quality, storage_path, ...fallbackPayload } = referencePayload;
+    if (error?.message?.includes("'body_visible' column") || error?.message?.includes("'face_visible' column") || error?.message?.includes("'lighting_quality' column") || error?.message?.includes("'storage_path' column") || error?.message?.includes("'quality_score' column")) {
+      const { face_visible, body_visible, lighting_quality, storage_path, quality_score, quality_issues, quality_recommendation, can_be_primary_identity, is_screenshot, has_face, face_clear, resolution_ok, audited_at, ...fallbackPayload } = referencePayload;
       const fallback = await supabase
         .from("reference_photos")
         .insert(fallbackPayload)
@@ -817,7 +891,7 @@ export function ShootCreatePage() {
   );
 }
 
-function PhotoStep({ refs, previews, onUpload, onRemove }: { refs: ReferencePhoto[]; previews: Record<string, string>; onUpload: (type: string, file: File, quality?: QualityStatus) => void; onRemove: (type: string) => void }) {
+function PhotoStep({ refs, previews, onUpload, onRemove }: { refs: ReferencePhoto[]; previews: Record<string, string>; onUpload: (type: string, file: File) => void; onRemove: (type: string) => void }) {
   return (
     <div className="grid gap-5">
       <div className="rounded-lg border border-line bg-ink/60 p-4 text-sm leading-6 text-slate-300">Use uma foto nitida, bem iluminada e sem filtro forte. Para tatuagens visiveis, envie areas especificas nas referencias opcionais.</div>
@@ -826,25 +900,24 @@ function PhotoStep({ refs, previews, onUpload, onRemove }: { refs: ReferencePhot
   );
 }
 
-function ReferenceUploadField({ photo, refPhoto, preview, required, onUpload, onRemove }: { photo: { type: string; label: string }; refPhoto?: ReferencePhoto; preview?: string; required?: boolean; onUpload: (type: string, file: File, quality?: QualityStatus) => void; onRemove: (type: string) => void }) {
-  const [quality, setQuality] = useState<QualityStatus>(refPhoto?.quality_status ?? "boa");
+function ReferenceUploadField({ photo, refPhoto, preview, required, onUpload, onRemove }: { photo: { type: string; label: string }; refPhoto?: ReferencePhoto; preview?: string; required?: boolean; onUpload: (type: string, file: File) => void; onRemove: (type: string) => void }) {
   const complete = Boolean(refPhoto);
+  const issues = Array.isArray(refPhoto?.quality_issues) ? refPhoto.quality_issues : [];
   return (
     <UploadVisualCard title={photo.label} text={required ? "Use uma foto nitida, bem iluminada e sem filtro forte." : "Envie uma referencia extra para roupa, pose, cenario ou detalhe."} complete={complete} preview={preview} kind={UploadKindForType(photo.type)}>
       <div className="grid gap-3">
         {complete && !preview ? <div className="rounded-lg border border-line bg-ink p-3 text-xs text-slate-300">Foto enviada: {refPhoto?.notes || refPhoto?.file_url}</div> : null}
-        <div className="flex flex-wrap gap-2"><StatusBadge tone={complete ? "good" : "warn"}>{complete ? "Enviada" : "Pendente"}</StatusBadge><StatusBadge tone={quality === "ruim" ? "bad" : quality === "media" ? "warn" : "good"}>{quality === "ruim" ? "Revisar qualidade" : quality === "media" ? "Qualidade media" : "Foto boa"}</StatusBadge></div>
-        <div className="grid gap-2 sm:grid-cols-[1fr_140px]">
+        <div className="flex flex-wrap gap-2"><StatusBadge tone={complete ? "good" : "warn"}>{complete ? "Enviada" : "Pendente"}</StatusBadge><StatusBadge tone={qualityStatusTone(refPhoto?.quality_status)}>{qualityStatusLabel(refPhoto?.quality_status)}</StatusBadge>{typeof refPhoto?.quality_score === "number" ? <StatusBadge tone="default">{refPhoto.quality_score}/100</StatusBadge> : null}{refPhoto?.can_be_primary_identity ? <StatusBadge tone="good">Identidade principal</StatusBadge> : null}</div>
+        {complete ? <div className="rounded-lg border border-line bg-ink/70 p-3 text-xs leading-5 text-slate-300">
+          <p>{refPhoto?.quality_recommendation || "Auditoria pendente. Reenvie a foto para atualizar a analise."}</p>
+          {issues.length > 0 ? <p className="mt-2 text-slate-500">Problemas: {issues.join(", ")}</p> : null}
+        </div> : null}
+        <div className="grid gap-2">
           <input className={inputClass} type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) onUpload(photo.type, file, quality);
+            if (file) onUpload(photo.type, file);
             event.currentTarget.value = "";
           }} />
-          <select className={inputClass} value={quality} onChange={(event) => setQuality(event.target.value as QualityStatus)}>
-            <option value="boa">Foto boa</option>
-            <option value="media">Foto media</option>
-            <option value="ruim">Foto ruim</option>
-          </select>
         </div>
         <div className="flex flex-wrap gap-2">{complete ? <Button variant="ghost" onClick={() => onRemove(photo.type)}>Remover foto</Button> : null}<span className="text-xs text-slate-500">{complete ? "Voce pode trocar enviando outro arquivo." : "Placeholder visual nao conta como foto enviada."}</span></div>
       </div>
@@ -863,7 +936,7 @@ function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { 
   const creditsNeeded = creditCostForQuantity(state, quantity);
   const checklist = [
     ["Cliente selecionada", Boolean(client)],
-    ["Fotos obrigatorias enviadas", readyPhotos],
+    ["Fotos obrigatorias aprovadas", readyPhotos],
     ["Categoria escolhida", Boolean(form.category)],
     ["Consentimento confirmado", Boolean(form.consent_confirmed)],
     ["Creditos suficientes", state.credits.balance >= creditsNeeded]
@@ -922,7 +995,7 @@ export function ShootDetailPage({ id }: { id: string }) {
   const editableDetailQuantity = detailQuantityOptions.includes(detailQuantity) ? detailQuantity : detailQuantityOptions[0];
   const detailCreditsNeeded = creditCostForQuantity(state, editableDetailQuantity);
 
-  async function uploadDetailReferencePhoto(type: string, file: File, quality: QualityStatus = "boa") {
+  async function uploadDetailReferencePhoto(type: string, file: File) {
     setEditError("");
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setEditError("Use apenas imagens JPG, PNG ou WEBP.");
@@ -933,6 +1006,13 @@ export function ShootDetailPage({ id }: { id: string }) {
       return;
     }
     const userId = await getCurrentUserId(supabase);
+    const imageInspection = await inspectImageFile(file);
+    const audit = auditReferencePhoto({
+      type,
+      fileName: file.name,
+      fileSize: file.size,
+      ...imageInspection
+    });
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
     const storagePath = `${userId}/${client.id}/${currentShoot.id}/${type}/${Date.now()}-${safeName}`;
     const upload = await supabase.storage.from("client-reference-photos").upload(storagePath, file, { contentType: file.type, upsert: true });
@@ -950,15 +1030,24 @@ export function ShootDetailPage({ id }: { id: string }) {
       type,
       storage_path: storagePath,
       file_url: storagePath,
-      quality_status: quality,
-      face_visible: type.includes("face"),
-      body_visible: type.includes("body") || type.includes("full_body"),
-      lighting_quality: quality,
+      quality_status: audit.quality_status,
+      quality_score: audit.quality_score,
+      quality_issues: audit.quality_issues,
+      quality_recommendation: audit.quality_recommendation,
+      can_be_primary_identity: audit.can_be_primary_identity,
+      is_screenshot: audit.is_screenshot,
+      has_face: audit.has_face,
+      face_clear: audit.face_clear,
+      face_visible: audit.has_face,
+      body_visible: audit.body_visible,
+      resolution_ok: audit.resolution_ok,
+      lighting_quality: audit.lighting_quality,
+      audited_at: audit.audited_at,
       notes: file.name
     };
     let { error: insertError } = await supabase.from("reference_photos").insert(referencePayload);
-    if (insertError?.message?.includes("'body_visible' column") || insertError?.message?.includes("'face_visible' column") || insertError?.message?.includes("'lighting_quality' column") || insertError?.message?.includes("'storage_path' column")) {
-      const { face_visible, body_visible, lighting_quality, storage_path, ...fallbackPayload } = referencePayload;
+    if (insertError?.message?.includes("'body_visible' column") || insertError?.message?.includes("'face_visible' column") || insertError?.message?.includes("'lighting_quality' column") || insertError?.message?.includes("'storage_path' column") || insertError?.message?.includes("'quality_score' column")) {
+      const { face_visible, body_visible, lighting_quality, storage_path, quality_score, quality_issues, quality_recommendation, can_be_primary_identity, is_screenshot, has_face, face_clear, resolution_ok, audited_at, ...fallbackPayload } = referencePayload;
       const fallback = await supabase.from("reference_photos").insert(fallbackPayload);
       insertError = fallback.error;
     }
@@ -1119,7 +1208,7 @@ export function ShootDetailPage({ id }: { id: string }) {
             <div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Estilo: {shoot.photo_style || "-"}</p><p>Roupa: {shoot.outfit || "-"} {shoot.outfit_color || ""}</p><p>Local: {shoot.location || "-"}</p><p>Quantidade: {shoot.quantity}</p><p>Creditos necessarios: {creditCostForQuantity(state, shoot.quantity)}</p><p>Consentimento: {shoot.consent_confirmed ? "confirmado" : "pendente"}</p></div>
           )}
         </Card>
-        {isAdmin ? <PromptPreview prompt={prompt} negative={defaultNegativePrompt} /> : <Card><h2 className="text-lg font-semibold">Checklist do ensaio</h2><div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Fotos obrigatorias: {requiredPhotoTypes.every((photo) => refs.some((ref) => ref.type === photo.type)) ? "completas" : "pendentes"}</p><p>Consentimento: {shoot.consent_confirmed ? "confirmado" : "pendente"}</p><p>Creditos necessarios: {detailCreditsNeeded}</p></div><p className="mt-4 text-sm leading-6 text-slate-400">Envie as fotos certas para aumentar a qualidade do resultado e mantenha a autorizacao de uso de imagem registrada antes de gerar.</p></Card>}
+        {isAdmin ? <PromptPreview prompt={prompt} negative={defaultNegativePrompt} /> : <Card><h2 className="text-lg font-semibold">Checklist do ensaio</h2><div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Fotos obrigatorias aprovadas: {summarizePhotoQuality(refs).ok ? "sim" : "pendentes"}</p><p>Consentimento: {shoot.consent_confirmed ? "confirmado" : "pendente"}</p><p>Creditos necessarios: {detailCreditsNeeded}</p></div><p className="mt-4 text-sm leading-6 text-slate-400">Envie fotos originais, nitidas e sem captura de tela para preservar melhor a identidade antes de gerar.</p></Card>}
       </div>
       {editing ? (
         <Card className="mt-5">

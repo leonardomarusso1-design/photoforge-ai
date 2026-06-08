@@ -20,30 +20,36 @@ export const defaultNegativePrompt = "AI-generated look, fake face, different pe
 
 export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos: ReferencePhoto[]) {
   const tattoos = referencePhotos.some((photo) => photo.type.includes("tattoo"));
-  const filled = [
-    `Client: ${client.name}${client.age ? `, ${client.age} years old` : ""}.`,
+  const outfit = [shoot.outfit, shoot.outfit_color].filter(Boolean).join(", ");
+  const scene = [
     categoryPrompts[shoot.category] ?? "Create a realistic professional photoshoot with premium composition, believable location, natural colors and high-end photography look.",
-    shoot.outfit && `Outfit: ${shoot.outfit}.`,
-    shoot.outfit_color && `Outfit color: ${shoot.outfit_color}.`,
+    shoot.location && `Location/scenario: ${shoot.location}.`,
+    shoot.mood && `Mood/environment: ${shoot.mood}.`,
+    shoot.lighting && `Lighting: ${shoot.lighting}.`
+  ].filter(Boolean).join(" ");
+  const styling = [
+    outfit && `Outfit: ${outfit}.`,
     shoot.shoes && `Shoes: ${shoot.shoes}.`,
     shoot.accessories && `Accessories: ${shoot.accessories}.`,
     shoot.hair && `Hair: ${shoot.hair}.`,
-    shoot.makeup && `Makeup: ${shoot.makeup}.`,
-    shoot.location && `Location/scenario: ${shoot.location}.`,
-    shoot.mood && `Mood/environment: ${shoot.mood}.`,
+    shoot.makeup && `Makeup: ${shoot.makeup}.`
+  ].filter(Boolean).join(" ");
+  const direction = [
     shoot.pose && `Desired pose: ${shoot.pose}.`,
     shoot.expression && `Desired expression: ${shoot.expression}.`,
-    shoot.lighting && `Lighting: ${shoot.lighting}.`,
     shoot.photo_style && `Photo style: ${shoot.photo_style}.`,
-    shoot.free_notes && `User details: ${shoot.free_notes}.`,
-    "Always include realistic DSLR photo, professional photography, high detail, real human skin, realistic shadows, natural colors, believable background, no artificial AI look.",
-    "Do not add text, labels, logos, watermarks or written words inside the image."
-  ].filter(Boolean);
+    shoot.free_notes && `User details: ${shoot.free_notes}.`
+  ].filter(Boolean).join(" ");
 
   return [
-    identityBlock,
+    `Identity priority: ${identityBlock}`,
+    `Client: ${client.name}${client.age ? `, ${client.age} years old` : ""}.`,
     tattoos ? "Preserve all visible tattoos accurately in the same body areas, with realistic placement, scale and orientation." : "",
-    anatomyBlock,
-    filled.join(" ")
+    `Body and proportions: ${anatomyBlock}`,
+    `Scene: ${scene}`,
+    styling ? `Clothing, hair and accessories: ${styling}` : "",
+    direction ? `Expression, pose and style: ${direction}` : "",
+    "Photographic quality: realistic DSLR photo, professional photography, high detail, real human skin, realistic shadows, natural colors, believable background, no artificial AI look.",
+    "Negative instructions: Do not add text, labels, logos, watermarks or written words inside the image."
   ].filter(Boolean).join("\n\n");
 }
