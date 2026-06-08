@@ -18,9 +18,43 @@ const categoryPrompts: Record<string, string> = {
 
 export const defaultNegativePrompt = "AI-generated look, fake face, different person, changed identity, overly beautified face, plastic skin, blurred face, distorted eyes, asymmetrical eyes beyond natural features, changed nose, changed mouth, changed lips, changed jawline, wrong age, younger face, older face, wrong body, unrealistic body proportions, extra fingers, missing fingers, broken hands, distorted hands, deformed legs, extra limbs, bad anatomy, blurry, low quality, cartoon, 3D render, doll-like skin, wax skin, beauty filter, over-smoothed skin, watermark, text, logo, signature, mutated body, distorted tattoos, wrong tattoos, fake tattoos, unnatural smile, exaggerated teeth.";
 
+function normalizeText(value?: string | null) {
+  return value?.trim().replace(/\s+/g, " ") ?? "";
+}
+
+function uniqueParts(parts: (string | undefined | null | false)[]) {
+  const seen = new Set<string>();
+  return parts
+    .map((part) => normalizeText(part || ""))
+    .filter(Boolean)
+    .filter((part) => {
+      const key = part.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function optionalReferenceBlock(referencePhotos: ReferencePhoto[]) {
+  const groups = [
+    ["outfit_visual", "outfit_reference"],
+    ["pose_scenario", "mood_reference"],
+    ["important_detail", "tattoo_arm", "tattoo_leg", "back", "hair_detail"],
+    ["extra"]
+  ];
+  const labels = ["outfit/visual", "pose/scenario", "important detail", "extra"];
+  const descriptions = groups
+    .map((types, index) => {
+      const count = referencePhotos.filter((photo) => types.includes(photo.type)).length;
+      return count > 0 ? `${labels[index]} reference provided (${count}).` : "";
+    })
+    .filter(Boolean);
+  return descriptions.length > 0 ? descriptions.join(" ") : "";
+}
+
 export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos: ReferencePhoto[]) {
   const tattoos = referencePhotos.some((photo) => photo.type.includes("tattoo"));
-  const outfit = [shoot.outfit, shoot.outfit_color].filter(Boolean).join(", ");
+  const outfit = uniqueParts([shoot.outfit, shoot.outfit_color]).join(", ");
   const scene = [
     categoryPrompts[shoot.category] ?? "Create a realistic professional photoshoot with premium composition, believable location, natural colors and high-end photography look.",
     shoot.location && `Location/scenario: ${shoot.location}.`,
@@ -40,6 +74,7 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
     shoot.photo_style && `Photo style: ${shoot.photo_style}.`,
     shoot.free_notes && `User details: ${shoot.free_notes}.`
   ].filter(Boolean).join(" ");
+  const references = optionalReferenceBlock(referencePhotos);
 
   return [
     `Identity priority: ${identityBlock}`,
@@ -49,6 +84,7 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
     `Scene: ${scene}`,
     styling ? `Clothing, hair and accessories: ${styling}` : "",
     direction ? `Expression, pose and style: ${direction}` : "",
+    references ? `Optional references: ${references}` : "",
     "Photographic quality: realistic DSLR photo, professional photography, high detail, real human skin, realistic shadows, natural colors, believable background, no artificial AI look.",
     "Negative instructions: Do not add text, labels, logos, watermarks or written words inside the image."
   ].filter(Boolean).join("\n\n");

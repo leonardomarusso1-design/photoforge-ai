@@ -27,13 +27,10 @@ export const requiredPhotoTypes = [
 ];
 
 export const optionalPhotoTypes = [
-  { type: "tattoo_arm", label: "Tatuagem no braco" },
-  { type: "tattoo_leg", label: "Tatuagem na perna" },
-  { type: "back", label: "Costas" },
-  { type: "hair_detail", label: "Cabelo em detalhe" },
-  { type: "outfit_reference", label: "Roupa de referencia" },
-  { type: "extra", label: "Extra" },
-  { type: "mood_reference", label: "Referencia de estilo" }
+  { type: "outfit_visual", label: "Roupa / visual", description: "Envie uma referencia de roupa, calcado, acessorios ou estilo visual." },
+  { type: "pose_scenario", label: "Pose / cenario", description: "Envie uma referencia de pose, enquadramento, local ou composicao." },
+  { type: "important_detail", label: "Detalhe importante", description: "Use para tatuagem, cabelo, costas, cicatriz ou qualquer detalhe que precisa aparecer corretamente." },
+  { type: "extra", label: "Extra", description: "Envie qualquer outra referencia complementar." }
 ];
 
 export const templates = [

@@ -296,7 +296,7 @@ export function LandingPhotoGuideImage({ src, title }: { src?: string; title: st
 
 export function UploadKindForType(type: string): PlaceholderKind {
   if (type.includes("full_body") || type.includes("body")) return type.includes("side") ? "body-side" : "body-front";
-  if (type.includes("tattoo") || type.includes("hair") || type.includes("outfit")) return "detail";
+  if (type.includes("tattoo") || type.includes("hair") || type.includes("outfit") || type.includes("detail") || type.includes("back")) return "detail";
   return "portrait";
 }
 

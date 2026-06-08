@@ -83,6 +83,9 @@ export function auditReferencePhoto(input: PhotoAuditInput): PhotoAuditResult {
 
   const isFace = faceTypes.includes(type);
   const isBody = bodyTypes.includes(type);
+  const optionalPoseScenario = type === "pose_scenario";
+  const optionalDetail = type === "important_detail" || type === "tattoo_arm" || type === "tattoo_leg" || type === "back" || type === "hair_detail";
+  const optionalOutfit = type === "outfit_visual" || type === "outfit_reference";
   const hasFace = isFace || Boolean(input.width && input.height && !isBody);
   const faceClear = isFace ? resolutionOk && !isScreenshot && lightingQuality !== "poor" : false;
   const bodyVisible = isBody ? resolutionOk && !isScreenshot : false;
@@ -99,15 +102,25 @@ export function auditReferencePhoto(input: PhotoAuditInput): PhotoAuditResult {
     score -= 30;
     issues.push("corpo_inteiro_nao_confirmado");
   }
+  if (optionalDetail && (!resolutionOk || lightingQuality === "poor")) {
+    score -= 15;
+    issues.push("detalhe_pouco_nitido");
+  }
+  if (optionalOutfit && !resolutionOk) {
+    score -= 10;
+    issues.push("visual_pouco_claro");
+  }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
-  const status = isScreenshot ? "rejected" : score >= 75 ? "approved" : score >= 60 ? "warning" : "rejected";
+  const status = isScreenshot && optionalPoseScenario ? "warning" : isScreenshot ? "rejected" : score >= 75 ? "approved" : score >= 60 ? "warning" : "rejected";
   const canBePrimary = isFace && status === "approved" && score >= 75 && !isScreenshot && faceClear;
 
   let recommendation = "Aprovada: foto com qualidade suficiente para continuar.";
   if (status === "warning") recommendation = "Atencao: foto utilizavel, mas envie uma versao melhor se possivel.";
   if (status === "rejected") recommendation = "Reprovada: envie uma foto original, nitida, sem print e com melhor iluminacao.";
   if (isScreenshot) recommendation = "Essa imagem parece ser uma captura de tela. Envie a foto original, sem print, sem icones e com melhor qualidade.";
+  if (isScreenshot && optionalPoseScenario) recommendation = "Atencao: parece captura de tela, mas pode servir como inspiracao de pose ou cenario.";
+  if (optionalDetail && status !== "approved") recommendation = "Essa referencia de detalhe esta fraca. A IA pode nao preservar esse detalhe corretamente.";
   if (isFace && !canBePrimary && status !== "rejected") recommendation = "Atencao: a foto pode ajudar, mas envie um rosto mais nitido para preservar identidade.";
 
   return {

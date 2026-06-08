@@ -177,6 +177,18 @@ function quantitySelectOptions(state: DemoState) {
   return state.generationConfig.quantityOptions.length > 0 ? state.generationConfig.quantityOptions : defaultGenerationConfig.quantityOptions;
 }
 
+const optionalReferenceAliases: Record<string, string[]> = {
+  outfit_visual: ["outfit_visual", "outfit_reference"],
+  pose_scenario: ["pose_scenario", "mood_reference"],
+  important_detail: ["important_detail", "tattoo_arm", "tattoo_leg", "back", "hair_detail"],
+  extra: ["extra"]
+};
+
+function findReferenceByType(refs: ReferencePhoto[], type: string) {
+  const aliases = optionalReferenceAliases[type] ?? [type];
+  return refs.find((ref) => aliases.includes(ref.type));
+}
+
 function qualityStatusTone(status?: string | null): "default" | "good" | "warn" | "bad" {
   if (status === "approved" || status === "boa") return "good";
   if (status === "warning" || status === "media") return "warn";
@@ -875,8 +887,10 @@ export function ShootCreatePage() {
         </div>}
         {step === 2 && <PhotoStep refs={currentRefs} previews={uploadPreviews} onUpload={uploadReferencePhoto} onRemove={removeReferencePhoto} />}
         {step === 3 && <div>
-          <p className="mb-4 text-sm text-slate-400">As referencias ajudam no estilo, mas a identidade da cliente deve vir das fotos principais.</p>
-          <div className="grid gap-3 md:grid-cols-2">{optionalPhotoTypes.slice(0, 6).map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={currentRefs.find((ref) => ref.type === photo.type)} preview={uploadPreviews[photo.type]} onUpload={uploadReferencePhoto} onRemove={removeReferencePhoto} />)}</div>
+          <h2 className="text-lg font-semibold">Referencias opcionais</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Use referencias para guiar roupa, pose, cenario ou detalhes importantes. A identidade deve vir das fotos principais.</p>
+          <div className="mt-4 rounded-lg border border-line bg-ink/60 p-4 text-sm text-slate-300">Referencias opcionais ajudam no estilo, mas nao substituem as fotos principais de rosto e corpo.</div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">{optionalPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(currentRefs, photo.type)} preview={uploadPreviews[photo.type]} onUpload={uploadReferencePhoto} onRemove={removeReferencePhoto} />)}</div>
         </div>}
         {step === 4 && <PersonalizationFields form={form} setForm={setForm} />}
         {step === 5 && <GenerationStep state={state} form={form} setForm={setForm} client={client} readyPhotos={readyPhotos} ready={ready} />}
@@ -900,11 +914,11 @@ function PhotoStep({ refs, previews, onUpload, onRemove }: { refs: ReferencePhot
   );
 }
 
-function ReferenceUploadField({ photo, refPhoto, preview, required, onUpload, onRemove }: { photo: { type: string; label: string }; refPhoto?: ReferencePhoto; preview?: string; required?: boolean; onUpload: (type: string, file: File) => void; onRemove: (type: string) => void }) {
+function ReferenceUploadField({ photo, refPhoto, preview, required, onUpload, onRemove }: { photo: { type: string; label: string; description?: string }; refPhoto?: ReferencePhoto; preview?: string; required?: boolean; onUpload: (type: string, file: File) => void; onRemove: (type: string) => void }) {
   const complete = Boolean(refPhoto);
   const issues = Array.isArray(refPhoto?.quality_issues) ? refPhoto.quality_issues : [];
   return (
-    <UploadVisualCard title={photo.label} text={required ? "Use uma foto nitida, bem iluminada e sem filtro forte." : "Envie uma referencia extra para roupa, pose, cenario ou detalhe."} complete={complete} preview={preview} kind={UploadKindForType(photo.type)}>
+    <UploadVisualCard title={photo.label} text={required ? "Use uma foto nitida, bem iluminada e sem filtro forte." : photo.description ?? "Envie uma referencia complementar."} complete={complete} preview={preview} kind={UploadKindForType(photo.type)}>
       <div className="grid gap-3">
         {complete && !preview ? <div className="rounded-lg border border-line bg-ink p-3 text-xs text-slate-300">Foto enviada: {refPhoto?.notes || refPhoto?.file_url}</div> : null}
         <div className="flex flex-wrap gap-2"><StatusBadge tone={complete ? "good" : "warn"}>{complete ? "Enviada" : "Pendente"}</StatusBadge><StatusBadge tone={qualityStatusTone(refPhoto?.quality_status)}>{qualityStatusLabel(refPhoto?.quality_status)}</StatusBadge>{typeof refPhoto?.quality_score === "number" ? <StatusBadge tone="default">{refPhoto.quality_score}/100</StatusBadge> : null}{refPhoto?.can_be_primary_identity ? <StatusBadge tone="good">Identidade principal</StatusBadge> : null}</div>
@@ -913,21 +927,70 @@ function ReferenceUploadField({ photo, refPhoto, preview, required, onUpload, on
           {issues.length > 0 ? <p className="mt-2 text-slate-500">Problemas: {issues.join(", ")}</p> : null}
         </div> : null}
         <div className="grid gap-2">
-          <input className={inputClass} type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
+          <input id={`upload-${photo.type}`} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) onUpload(photo.type, file);
             event.currentTarget.value = "";
           }} />
+          <label htmlFor={`upload-${photo.type}`} className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-line bg-panel2 px-4 py-2 text-sm font-semibold text-white transition hover:border-cyan/70 hover:bg-white/[.07]">{complete ? "Trocar" : required ? "Enviar foto" : "Enviar referencia"}</label>
         </div>
-        <div className="flex flex-wrap gap-2">{complete ? <Button variant="ghost" onClick={() => onRemove(photo.type)}>Remover foto</Button> : null}<span className="text-xs text-slate-500">{complete ? "Voce pode trocar enviando outro arquivo." : "Placeholder visual nao conta como foto enviada."}</span></div>
+        <div className="flex flex-wrap gap-2">{complete ? <Button variant="ghost" onClick={() => onRemove(refPhoto?.type ?? photo.type)}>Remover</Button> : null}<span className="text-xs text-slate-500">{complete ? "Voce pode trocar enviando outro arquivo." : "Placeholder visual nao conta como foto enviada."}</span></div>
       </div>
     </UploadVisualCard>
   );
 }
 
 function PersonalizationFields({ form, setForm }: { form: Partial<Shoot>; setForm: (next: Partial<Shoot>) => void }) {
-  const fields: [keyof Shoot, string, string][] = [["outfit", "Tipo de roupa", "vestido longo"], ["outfit_color", "Cor da roupa", "vermelho"], ["shoes", "Calcado", "salto preto"], ["accessories", "Acessorios", "brincos discretos"], ["hair", "Cabelo", "cabelo solto natural"], ["makeup", "Maquiagem", "elegante"], ["location", "Cenario/local", "estudio elegante com fundo escuro"], ["mood", "Clima/ambiente", "sofisticado"], ["pose", "Pose desejada", "confiante"], ["expression", "Expressao desejada", "sorriso leve"], ["lighting", "Iluminacao", "luz suave de estudio"], ["photo_style", "Estilo fotografico", "foto realista DSLR"]];
-  return <div className="grid gap-4 md:grid-cols-2">{fields.map(([key, label, placeholder]) => <Field key={key} label={label}><input className={inputClass} placeholder={placeholder} value={(form[key] as string) ?? ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></Field>)}</div>;
+  const [showFineTuning, setShowFineTuning] = useState(false);
+  const category = form.category ?? "";
+  const isChild = category.includes("Infantil");
+  const essentialFields: [keyof Shoot, string, string][] = [
+    ["outfit", "Roupa", "camisa oversized branca e short cinza"],
+    ["outfit_color", "Cor principal da roupa", "branco e cinza"],
+    ["location", "Cenario/local", "praia ao por do sol"],
+    ["pose", "Pose desejada", "sentada em uma pedra"],
+    ["expression", "Expressao desejada", "natural, sorriso leve"],
+    ["photo_style", "Estilo fotografico", "foto realista DSLR editorial"]
+  ];
+  const fineFields: [keyof Shoot, string, string][] = [
+    ["shoes", "Calcado", "tenis branco"],
+    ["accessories", "Acessorios", "brincos discretos"],
+    ["hair", "Cabelo", "manter cabelo igual ao original"],
+    ...(!isChild ? [["makeup", "Maquiagem", "natural e elegante"] as [keyof Shoot, string, string]] : []),
+    ["lighting", "Iluminacao", "luz natural suave"],
+    ["mood", "Clima/ambiente", "leve, sofisticado e natural"]
+  ];
+  const renderField = ([key, label, placeholder]: [keyof Shoot, string, string]) => (
+    <Field key={key} label={label}><input className={inputClass} placeholder={placeholder} value={(form[key] as string) ?? ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></Field>
+  );
+  return (
+    <div className="grid gap-5">
+      <div>
+        <h2 className="text-lg font-semibold">Personalize o ensaio</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">Preencha apenas o essencial. Os ajustes finos sao opcionais.</p>
+      </div>
+      <div className="rounded-lg border border-line bg-ink/60 p-4">
+        <h3 className="font-semibold">Essencial</h3>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">{essentialFields.map(renderField)}</div>
+      </div>
+      <div className="rounded-lg border border-line bg-ink/60 p-4">
+        <button type="button" className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setShowFineTuning((current) => !current)}>
+          <span>
+            <span className="block font-semibold">Ajustes finos</span>
+            <span className="mt-1 block text-sm text-slate-400">Calcado, acessorios, cabelo, maquiagem, luz e clima.</span>
+          </span>
+          <StatusBadge tone={showFineTuning ? "good" : "default"}>{showFineTuning ? "Aberto" : "Opcional"}</StatusBadge>
+        </button>
+        {showFineTuning ? <div className="mt-4 grid gap-4 md:grid-cols-2">{fineFields.map(renderField)}</div> : null}
+      </div>
+      <div className="rounded-lg border border-line bg-ink/60 p-4">
+        <h3 className="font-semibold">Observacoes extras</h3>
+        <p className="mt-2 text-sm text-slate-400">Escreva qualquer detalhe importante que nao apareceu acima.</p>
+        <textarea className={`${inputClass} mt-4 min-h-28`} placeholder="Ex.: manter cabelo igual, nao afinar corpo, nao usar sorriso grande, quero sentado em uma pedra, evitar pose exagerada..." value={form.free_notes ?? ""} onChange={(e) => setForm({ ...form, free_notes: e.target.value })} />
+      </div>
+      <div className="rounded-lg border border-line bg-ink/60 p-4 text-sm text-slate-400">Essas informacoes serao usadas para montar o prompt final.</div>
+    </div>
+  );
 }
 
 function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { state: DemoState; form: Partial<Shoot>; setForm: (next: Partial<Shoot>) => void; client?: Client; readyPhotos: boolean; ready: boolean }) {
@@ -1216,7 +1279,7 @@ export function ShootDetailPage({ id }: { id: string }) {
           <p className="mt-2 text-sm text-slate-400">Complete ou substitua as fotos obrigatorias antes de gerar.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {requiredPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={refs.find((ref) => ref.type === photo.type)} preview={uploadPreviews[photo.type]} required onUpload={uploadDetailReferencePhoto} onRemove={removeDetailReferencePhoto} />)}
-            {optionalPhotoTypes.slice(0, 6).map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={refs.find((ref) => ref.type === photo.type)} preview={uploadPreviews[photo.type]} onUpload={uploadDetailReferencePhoto} onRemove={removeDetailReferencePhoto} />)}
+            {optionalPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(refs, photo.type)} preview={uploadPreviews[photo.type]} onUpload={uploadDetailReferencePhoto} onRemove={removeDetailReferencePhoto} />)}
           </div>
         </Card>
       ) : null}
