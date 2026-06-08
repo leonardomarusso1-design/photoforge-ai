@@ -566,6 +566,7 @@ export function ClientDetailPage({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [editError, setEditError] = useState("");
   const [form, setForm] = useState({ name: "", whatsapp: "", email: "", city: "", age: "", notes: "", status: "new" as ClientStatus });
   if (loadError) return <LoadErrorState message={loadError} />;
@@ -587,6 +588,7 @@ export function ClientDetailPage({ id }: { id: string }) {
       status: currentClient.status
     });
     setEditError("");
+    setConfirmDelete(false);
     setEditing(true);
   }
 
@@ -629,8 +631,10 @@ export function ClientDetailPage({ id }: { id: string }) {
   }
 
   async function deleteClient() {
-    const confirmed = window.confirm("Excluir esta cliente? Os ensaios e imagens vinculados tambem sairao do dashboard e das listas.");
-    if (!confirmed) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
     setEditError("");
     setDeleting(true);
     const userId = await getCurrentUserId(supabase);
@@ -659,6 +663,7 @@ export function ClientDetailPage({ id }: { id: string }) {
     if (error) {
       logSupabaseError("Supabase error", error);
       setEditError(process.env.NODE_ENV === "development" ? `Erro do Supabase: ${error.message}` : "Nao foi possivel excluir a cliente.");
+      setConfirmDelete(false);
       return;
     }
 
@@ -668,7 +673,8 @@ export function ClientDetailPage({ id }: { id: string }) {
 
   return (
     <>
-      <PageTitle title={currentClient.name} text={`${currentClient.whatsapp} - ${currentClient.city || "Cidade nao informada"}`} action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={startEditing}>Editar</Button><Button variant="danger" disabled={deleting} onClick={deleteClient}><Trash2 className="h-4 w-4" /> {deleting ? "Excluindo..." : "Excluir"}</Button><Button href={`/app/shoots/new?client=${currentClient.id}`}>Novo ensaio</Button></div>} />
+      <PageTitle title={currentClient.name} text={`${currentClient.whatsapp} - ${currentClient.city || "Cidade nao informada"}`} action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={startEditing}>Editar</Button><Button variant="danger" disabled={deleting} onClick={deleteClient}><Trash2 className="h-4 w-4" /> {deleting ? "Excluindo..." : confirmDelete ? "Confirmar exclusao" : "Excluir"}</Button>{confirmDelete ? <Button variant="ghost" disabled={deleting} onClick={() => setConfirmDelete(false)}>Cancelar</Button> : null}<Button href={`/app/shoots/new?client=${currentClient.id}`}>Novo ensaio</Button></div>} />
+      {confirmDelete ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">Confirme para excluir esta cliente. Os ensaios e imagens vinculados sairao do dashboard e das listas.</div> : null}
       {editError && !editing ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{editError}</div> : null}
       <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
         <Card>
@@ -1188,6 +1194,7 @@ export function ShootDetailPage({ id }: { id: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [editError, setEditError] = useState("");
@@ -1301,6 +1308,7 @@ export function ShootDetailPage({ id }: { id: string }) {
   function startEditing() {
     setForm({ ...shoot });
     setEditError("");
+    setConfirmDelete(false);
     setEditing(true);
   }
 
@@ -1365,8 +1373,10 @@ export function ShootDetailPage({ id }: { id: string }) {
   }
 
   async function deleteShoot() {
-    const confirmed = window.confirm("Excluir este ensaio? As imagens vinculadas tambem sairao da galeria e do dashboard.");
-    if (!confirmed) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
     setError("");
     setDeleting(true);
     const userId = await getCurrentUserId(supabase);
@@ -1389,6 +1399,7 @@ export function ShootDetailPage({ id }: { id: string }) {
     if (deleteError) {
       logSupabaseError("Supabase error", deleteError);
       setError(process.env.NODE_ENV === "development" ? `Erro do Supabase: ${deleteError.message}` : "Nao foi possivel excluir o ensaio.");
+      setConfirmDelete(false);
       return;
     }
 
@@ -1397,7 +1408,8 @@ export function ShootDetailPage({ id }: { id: string }) {
   }
   return (
     <>
-      <PageTitle title={shoot.title} text={`${client.name} - ${shoot.category} - ${shoot.quantity} imagens`} action={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={shoot.status === "completed"} onClick={startEditing}>Editar</Button><Button variant="danger" disabled={deleting || busy} onClick={deleteShoot}><Trash2 className="h-4 w-4" /> {deleting ? "Excluindo..." : "Excluir"}</Button><Button disabled={busy || deleting || shoot.status === "completed"} onClick={generate}>{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Gerar imagens</Button></div>} />
+      <PageTitle title={shoot.title} text={`${client.name} - ${shoot.category} - ${shoot.quantity} imagens`} action={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={shoot.status === "completed"} onClick={startEditing}>Editar</Button><Button variant="danger" disabled={deleting || busy} onClick={deleteShoot}><Trash2 className="h-4 w-4" /> {deleting ? "Excluindo..." : confirmDelete ? "Confirmar exclusao" : "Excluir"}</Button>{confirmDelete ? <Button variant="ghost" disabled={deleting || busy} onClick={() => setConfirmDelete(false)}>Cancelar</Button> : null}<Button disabled={busy || deleting || shoot.status === "completed"} onClick={generate}>{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Gerar imagens</Button></div>} />
+      {confirmDelete ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">Confirme para excluir este ensaio. As imagens vinculadas tambem sairao da galeria e do dashboard.</div> : null}
       {error ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div> : null}
       {state.generationConfig.realAiEnabledForAdmin ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-gold">Modo teste com IA real ativo. Cada imagem consome 10 créditos e pode gerar custo na API.</div> : null}
       <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
