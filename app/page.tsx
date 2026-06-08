@@ -1,33 +1,32 @@
-import { ArrowRight, CheckCircle2, LockKeyhole, ShieldCheck, Sparkles, WalletCards, Workflow } from "lucide-react";
+import { ArrowRight, CheckCircle2, LockKeyhole } from "lucide-react";
 import { Button, Card, Logo, SectionHeader, StatusBadge } from "@/components/ui";
-import { EditorialImagePlaceholder, GeneratedGalleryPreview, HeroProductMockup, MiniClientCard, OrderToDeliveryMockup, RequiredPhotosPreview, TemplateChipsPreview, TemplatePreviewCard, VisualStepCard } from "@/components/visual";
+import { GeneratedGalleryPreview, HeroProductMockup, LandingPhotoGuideImage, MiniClientCard, OrderToDeliveryMockup, RequiredPhotosPreview, TemplateChipsPreview, TemplatePreviewCard, VisualStepCard } from "@/components/visual";
 
 const categories = [
-  ["Aniversario", "Baloes, vestido elegante, luz de estudio e clima de celebracao.", "Celebracao", "template", "warm"],
-  ["Profissional", "Retratos corporativos para perfil, autoridade e posicionamento.", "Corporativo", "portrait", "cool"],
-  ["Casal", "Fotos com clima natural, conexao e composicao elegante.", "Editorial", "template", "editorial"],
-  ["Infantil", "Cenarios delicados, seguros e com estetica suave.", "Suave", "portrait", "soft"],
-  ["Fitness", "Visual de academia, postura forte e iluminacao atletica.", "Atletico", "body-front", "contrast"],
-  ["Praia", "Luz natural, cenario aberto e estetica lifestyle.", "Lifestyle", "body-side", "bright"]
+  ["Aniversario", "Baloes, vestido elegante, luz de estudio e clima de celebracao.", "Celebracao", "template-aniversario.png"],
+  ["Profissional", "Retratos corporativos para perfil, autoridade e posicionamento.", "Corporativo", "template-profissional.png"],
+  ["Casal", "Fotos com clima natural, conexao e composicao elegante.", "Editorial", "template-casal.png"],
+  ["Infantil", "Cenarios delicados, seguros e com estetica suave.", "Suave", "template-infantil.png"],
+  ["Fitness", "Visual de academia, postura forte e iluminacao atletica.", "Atletico", "template-fitness.png"],
+  ["Praia", "Luz natural, cenario aberto e estetica lifestyle.", "Lifestyle", "template-praia.png"]
 ] as const;
 
 const photoGuides = [
-  ["Rosto neutro", "Boa iluminacao, rosto visivel e sem filtro forte.", "portrait"],
-  ["Rosto sorrindo", "Ajuda a preservar expressao e tracos reais.", "portrait"],
-  ["Corpo inteiro de frente", "Foto de corpo inteiro para preservar proporcoes.", "body-front"],
-  ["Corpo inteiro de lado", "Referencia extra para volume, postura e silhueta.", "body-side"],
-  ["Tatuagens e detalhes", "Envie detalhes visiveis para manter marcas importantes.", "detail"]
+  ["Rosto neutro", "Boa iluminacao, rosto visivel e sem filtro forte.", "upload-rosto-neutro.png"],
+  ["Rosto sorrindo", "Ajuda a preservar expressao e tracos reais.", "upload-rosto-sorrindo.png"],
+  ["Corpo inteiro de frente", "Foto de corpo inteiro para preservar proporcoes.", "upload-corpo-frente.png"],
+  ["Corpo inteiro de lado", "Referencia extra para volume, postura e silhueta.", "upload-corpo-lado.png"]
 ] as const;
 
 const templates = [
-  ["Aniversario Luxo", "Decoracao elegante, luz de estudio e composicao de celebracao.", "Aniversario"],
-  ["Profissional Premium", "Retrato corporativo com presenca, confianca e acabamento editorial.", "Profissional"],
-  ["Casal Editorial", "Conexao natural, gestos elegantes e clima sofisticado.", "Casal"],
-  ["Infantil Estudio", "Cenario delicado, seguro e com estetica suave.", "Infantil"],
-  ["Fitness Academia", "Luz atletica, postura forte e visual de performance.", "Fitness"],
-  ["Praia Lifestyle", "Luz natural, movimento suave e cenario aberto.", "Praia"],
-  ["Gestante Elegante", "Ensaio respeitoso, emocional e com styling refinado.", "Gestante"],
-  ["Casual Urbano", "Ambiente natural, roupa casual e composicao moderna.", "Casual"]
+  ["Aniversario Luxo", "Decoracao elegante, luz de estudio e composicao de celebracao.", "Aniversario", "template-aniversario.png"],
+  ["Profissional Premium", "Retrato corporativo com presenca, confianca e acabamento editorial.", "Profissional", "template-profissional.png"],
+  ["Casal Editorial", "Conexao natural, gestos elegantes e clima sofisticado.", "Casal", "template-casal.png"],
+  ["Infantil Estudio", "Cenario delicado, seguro e com estetica suave.", "Infantil", "template-infantil.png"],
+  ["Fitness Academia", "Luz atletica, postura forte e visual de performance.", "Fitness", "template-fitness.png"],
+  ["Praia Lifestyle", "Luz natural, movimento suave e cenario aberto.", "Praia", "template-praia.png"],
+  ["Gestante Elegante", "Ensaio respeitoso, emocional e com styling refinado.", "Gestante", "template-gestante.png"],
+  ["Casual Urbano", "Ambiente natural, roupa casual e composicao moderna.", "Casual", "template-casual.png"]
 ];
 
 const faqs = [
@@ -72,7 +71,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <SectionHeader eyebrow="Previews visuais" title="Veja o que voce pode criar com um fluxo guiado" text="Escolha o tipo de ensaio, envie as referencias certas e mantenha tudo organizado por cliente." />
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map(([title, description, badge, kind, tone]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} kind={kind} tone={tone} />)}
+            {categories.map(([title, description, badge, image]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} imageSrc={`/assets/landing/${image}`} />)}
           </div>
         </div>
       </section>
@@ -98,9 +97,9 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <SectionHeader eyebrow="Fotos de referencia" title="As fotos certas aumentam a qualidade do resultado" text="O app guia o usuario sobre quais imagens enviar para preservar identidade, proporcoes, cabelo, pele e detalhes importantes." />
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
-            {photoGuides.map(([title, text, kind]) => (
+            {photoGuides.map(([title, text, image]) => (
               <Card key={title} className="p-3 hover:border-cyan/40">
-                <EditorialImagePlaceholder kind={kind} label={title} className="aspect-[4/5]" />
+                <LandingPhotoGuideImage src={`/assets/landing/${image}`} title={title} />
                 <h3 className="mt-4 font-semibold">{title}</h3>
                 <p className="mt-2 text-sm leading-5 text-slate-400">{text}</p>
                 <div className="mt-3"><StatusBadge tone="warn">Orientacao</StatusBadge></div>
@@ -113,10 +112,7 @@ export default function LandingPage() {
       <section className="mx-auto max-w-7xl px-4 py-14 md:px-8">
         <SectionHeader eyebrow="Templates" title="Templates prontos para vender mais rapido" text="Use ideias de ensaio como ponto de partida para criar ofertas mais claras e entregaveis mais consistentes." />
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {templates.map(([title, description, badge], index) => {
-            const tones = ["warm", "cool", "editorial", "soft", "contrast", "bright", "delicate", "urban"] as const;
-            return <TemplatePreviewCard key={title} title={title} description={description} badge={badge} kind={index % 3 === 0 ? "template" : index % 3 === 1 ? "portrait" : "body-front"} tone={tones[index]} />;
-          })}
+          {templates.map(([title, description, badge, image]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} imageSrc={`/assets/landing/${image}`} />)}
         </div>
       </section>
 

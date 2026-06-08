@@ -1,5 +1,6 @@
 import { Camera, CheckCircle2, Download, Heart, Image as ImageIcon, Sparkles, UserRound } from "lucide-react";
 import { clsx } from "clsx";
+import Image from "next/image";
 import { Button, Card, StatusBadge } from "@/components/ui";
 
 type PlaceholderKind = "portrait" | "body-front" | "body-side" | "gallery" | "template" | "detail";
@@ -58,6 +59,17 @@ export function EditorialImagePlaceholder({ kind = "portrait", tone, label, clas
   );
 }
 
+function LandingImage({ src, alt, label, priority, className, sizes = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" }: { src?: string; alt: string; label?: string; priority?: boolean; className?: string; sizes?: string }) {
+  if (!src) return <EditorialImagePlaceholder kind="template" label={label} className={className} />;
+  return (
+    <div className={clsx("relative overflow-hidden rounded-lg border border-white/10 bg-ink shadow-premium", className)}>
+      <Image src={src} alt={alt} fill priority={priority} sizes={sizes} className="object-cover transition duration-500 group-hover:scale-[1.03]" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-black/15" />
+      {label ? <div className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-xs text-slate-100 backdrop-blur">{label}</div> : null}
+    </div>
+  );
+}
+
 export function ClientAvatar({ name, className }: { name?: string; className?: string }) {
   const initials = (name || "Cliente").split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "CL";
   return <div className={clsx("grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-gradient-to-br from-cyan/80 to-violet/80 text-sm font-semibold text-white", className)}>{initials}</div>;
@@ -83,13 +95,8 @@ export function HeroProductMockup() {
             </div>
             <div className="flex flex-wrap gap-2"><StatusBadge tone="good">25 creditos</StatusBadge><Button variant="secondary">Revisar galeria</Button></div>
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            {[
-              ["warm", "portrait"],
-              ["cool", "template"],
-              ["editorial", "body-front"],
-              ["delicate", "portrait"]
-            ].map(([tone, kind], index) => <EditorialImagePlaceholder key={index} kind={kind as PlaceholderKind} tone={tone as VisualTone} className="aspect-[3/4] ring-1 ring-white/5" />)}
+          <div className="mt-5">
+            <LandingImage src="/assets/landing/hero-dashboard.png" alt="Tela do PhotoForge AI com ensaio e galeria" priority sizes="(min-width: 1024px) 48vw, 100vw" className="aspect-[16/11] ring-1 ring-white/5" />
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <StatusBadge tone="good">4 imagens geradas</StatusBadge>
@@ -101,10 +108,10 @@ export function HeroProductMockup() {
   );
 }
 
-export function TemplatePreviewCard({ title, description, badge, kind = "template", tone }: { title: string; description: string; badge: string; kind?: PlaceholderKind; tone?: VisualTone }) {
+export function TemplatePreviewCard({ title, description, badge, kind = "template", tone, imageSrc }: { title: string; description: string; badge: string; kind?: PlaceholderKind; tone?: VisualTone; imageSrc?: string }) {
   return (
-    <Card className="overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50">
-      <EditorialImagePlaceholder kind={kind} tone={tone} label={badge} className="aspect-[4/5] rounded-b-none border-x-0 border-t-0" />
+    <Card className="group overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50">
+      {imageSrc ? <LandingImage src={imageSrc} alt={title} label={badge} className="aspect-[4/5] rounded-b-none border-x-0 border-t-0" /> : <EditorialImagePlaceholder kind={kind} tone={tone} label={badge} className="aspect-[4/5] rounded-b-none border-x-0 border-t-0" />}
       <div className="p-4">
         <h3 className="font-semibold">{title}</h3>
         <p className="mt-2 text-sm leading-5 text-slate-400">{description}</p>
@@ -124,7 +131,12 @@ export function OrderToDeliveryMockup() {
         </Card>
         <Card className="bg-ink/70">
           <p className="text-xs uppercase text-slate-500">Fotos</p>
-          <div className="mt-4 grid grid-cols-4 gap-2">{["portrait", "portrait", "body-front", "body-side"].map((kind, index) => <EditorialImagePlaceholder key={index} kind={kind as PlaceholderKind} tone={index % 2 ? "cool" : "soft"} className="aspect-[3/4]" />)}</div>
+          <div className="mt-4 grid grid-cols-4 gap-2">{[
+            "/assets/landing/upload-rosto-neutro.png",
+            "/assets/landing/upload-rosto-sorrindo.png",
+            "/assets/landing/upload-corpo-frente.png",
+            "/assets/landing/upload-corpo-lado.png"
+          ].map((src, index) => <LandingImage key={src} src={src} alt={`Foto obrigatoria ${index + 1}`} sizes="160px" className="aspect-[3/4]" />)}</div>
           <div className="mt-3"><StatusBadge tone="good">Todas enviadas</StatusBadge></div>
         </Card>
         <Card className="bg-ink/70">
@@ -133,7 +145,7 @@ export function OrderToDeliveryMockup() {
         </Card>
         <Card className="bg-ink/70">
           <p className="text-xs uppercase text-slate-500">Entrega</p>
-          <div className="mt-4 grid grid-cols-4 gap-2">{["warm", "cool", "editorial", "bright"].map((tone, index) => <EditorialImagePlaceholder key={index} tone={tone as VisualTone} kind="template" className="aspect-[3/4]" />)}</div>
+          <LandingImage src="/assets/landing/gallery-preview.png" alt="Galeria organizada de imagens geradas" sizes="(min-width: 1024px) 20vw, 100vw" className="mt-4 aspect-[16/10]" />
           <Button variant="secondary" className="mt-4 w-full">Baixar selecao</Button>
         </Card>
       </div>
@@ -229,11 +241,11 @@ export function RequiredPhotosPreview() {
   return (
     <div className="grid grid-cols-4 gap-2">
       {[
-        ["Rosto neutro", "portrait"],
-        ["Rosto sorrindo", "portrait"],
-        ["Corpo frente", "body-front"],
-        ["Corpo lado", "body-side"]
-      ].map(([label, kind]) => <EditorialImagePlaceholder key={label} kind={kind as PlaceholderKind} label={label} className="aspect-[3/4]" />)}
+        ["Rosto neutro", "/assets/landing/upload-rosto-neutro.png"],
+        ["Rosto sorrindo", "/assets/landing/upload-rosto-sorrindo.png"],
+        ["Corpo frente", "/assets/landing/upload-corpo-frente.png"],
+        ["Corpo lado", "/assets/landing/upload-corpo-lado.png"]
+      ].map(([label, src]) => <LandingImage key={label} src={src} alt={label} label={label} sizes="160px" className="aspect-[3/4]" />)}
     </div>
   );
 }
@@ -249,10 +261,14 @@ export function TemplateChipsPreview() {
 export function GeneratedGalleryPreview() {
   return (
     <div className="grid gap-3">
-      <div className="grid grid-cols-4 gap-2">{Array.from({ length: 4 }).map((_, index) => <EditorialImagePlaceholder key={index} kind={index % 2 ? "portrait" : "template"} className="aspect-[3/4]" />)}</div>
+      <LandingImage src="/assets/landing/gallery-preview.png" alt="Galeria de imagens organizada" sizes="(min-width: 1024px) 20vw, 100vw" className="aspect-[16/10]" />
       <Button variant="secondary" className="w-full"><Download className="h-4 w-4" /> Baixar</Button>
     </div>
   );
+}
+
+export function LandingPhotoGuideImage({ src, title }: { src?: string; title: string }) {
+  return <LandingImage src={src} alt={title} label={title} className="aspect-[4/5]" />;
 }
 
 export function UploadKindForType(type: string): PlaceholderKind {
