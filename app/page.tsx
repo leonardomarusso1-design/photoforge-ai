@@ -1,6 +1,6 @@
-import { ArrowRight, CheckCircle2, LockKeyhole } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button, Card, Logo, SectionHeader, StatusBadge } from "@/components/ui";
-import { GeneratedGalleryPreview, HeroProductMockup, LandingPhotoGuideImage, MiniClientCard, OrderToDeliveryMockup, RequiredPhotosPreview, TemplateChipsPreview, TemplatePreviewCard, VisualStepCard } from "@/components/visual";
+import { GeneratedGalleryPreview, HeroProductMockup, LandingPhotoGuideImage, MiniClientCard, OrderToDeliveryMockup, RequiredPhotosPreview, SecurityTrustGrid, TemplateChipsPreview, TemplatePreviewCard, VisualStepCard } from "@/components/visual";
 
 const categories = [
   ["Aniversario", "Baloes, vestido elegante, luz de estudio e clima de celebracao.", "Celebracao", "template-aniversario.png"],
@@ -67,33 +67,33 @@ export default function LandingPage() {
         <HeroProductMockup />
       </section>
 
-      <section className="border-y border-line bg-ink/80 px-4 py-14 md:px-8">
+      <section className="border-y border-line bg-ink/80 px-4 py-16 md:px-8">
         <div className="mx-auto max-w-7xl">
-          <SectionHeader eyebrow="Previews visuais" title="Veja o que voce pode criar com um fluxo guiado" text="Escolha o tipo de ensaio, envie as referencias certas e mantenha tudo organizado por cliente." />
+          <SectionHeader eyebrow="Galeria pronta para revisao" title="Veja o que voce pode criar com um fluxo guiado" text="Escolha o tipo de ensaio, envie as referencias certas e mantenha tudo organizado por cliente." />
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {categories.map(([title, description, badge, image]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} imageSrc={`/assets/landing/${image}`} />)}
           </div>
         </div>
       </section>
 
-      <section id="como-funciona" className="mx-auto max-w-7xl px-4 py-14 md:px-8">
+      <section id="como-funciona" className="mx-auto max-w-7xl px-4 py-16 md:px-8">
         <SectionHeader eyebrow="Como funciona" title="Parece uma esteira real de producao, nao uma pagina de prompts soltos" text="Cada etapa foi pensada para reduzir improviso e aumentar confianca antes da entrega." />
         <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <VisualStepCard title="Cadastre a cliente" text="Centralize contato, status e historico antes de iniciar o ensaio."><MiniClientCard /></VisualStepCard>
-          <VisualStepCard title="Envie as fotos obrigatorias" text="O app mostra quais fotos faltam e so libera quando existem referencias reais."><RequiredPhotosPreview /></VisualStepCard>
-          <VisualStepCard title="Escolha o estilo do ensaio" text="Use categorias, roupas, cenario, pose e templates para orientar a criacao."><TemplateChipsPreview /></VisualStepCard>
-          <VisualStepCard title="Gere, revise e entregue" text="Revise a galeria, favorite imagens e baixe os resultados para a cliente."><GeneratedGalleryPreview /></VisualStepCard>
+          <VisualStepCard title="Cliente" text="Centralize contato e status antes de iniciar."><MiniClientCard /></VisualStepCard>
+          <VisualStepCard title="Fotos" text="Envie as referencias certas para o ensaio."><RequiredPhotosPreview /></VisualStepCard>
+          <VisualStepCard title="Estilo" text="Escolha templates e detalhes do resultado."><TemplateChipsPreview /></VisualStepCard>
+          <VisualStepCard title="Entrega" text="Revise a galeria e baixe a selecao."><GeneratedGalleryPreview /></VisualStepCard>
         </div>
       </section>
 
-      <section className="border-y border-line bg-panel/60 px-4 py-14 md:px-8">
+      <section className="border-y border-line bg-panel/60 px-4 py-16 md:px-8">
         <div className="mx-auto max-w-7xl">
           <SectionHeader eyebrow="Fluxo completo" title="Do pedido da cliente ate a entrega final" text="O PhotoForge organiza cada etapa para voce nao depender de conversas perdidas, arquivos soltos e prompts improvisados." />
           <div className="mt-8"><OrderToDeliveryMockup /></div>
         </div>
       </section>
 
-      <section className="border-y border-line bg-panel/60 px-4 py-14 md:px-8">
+      <section className="border-y border-line bg-panel/60 px-4 py-16 md:px-8">
         <div className="mx-auto max-w-7xl">
           <SectionHeader eyebrow="Fotos de referencia" title="As fotos certas aumentam a qualidade do resultado" text="O app guia o usuario sobre quais imagens enviar para preservar identidade, proporcoes, cabelo, pele e detalhes importantes." />
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
@@ -109,28 +109,35 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-14 md:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-16 md:px-8">
         <SectionHeader eyebrow="Templates" title="Templates prontos para vender mais rapido" text="Use ideias de ensaio como ponto de partida para criar ofertas mais claras e entregaveis mais consistentes." />
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {templates.map(([title, description, badge, image]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} imageSrc={`/assets/landing/${image}`} />)}
         </div>
       </section>
 
-      <section className="border-y border-line bg-ink/80 px-4 py-14 md:px-8">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[.8fr_1.2fr]">
+      <section className="border-y border-line bg-ink/80 px-4 py-16 md:px-8">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[.75fr_1.25fr] lg:items-center">
           <SectionHeader eyebrow="Seguranca e consentimento" title="Uso de imagem precisa ser tratado com responsabilidade" text="Antes de gerar, o sistema exige confirmacao de autorizacao de uso de imagem. Isso ajuda a criar um processo mais seguro para quem vende e para quem aparece nas fotos." />
-          <Card className="bg-panel/80"><LockKeyhole className="h-8 w-8 text-cyan" /><p className="mt-4 text-sm leading-6 text-slate-300">Fotos de referencia, ensaios, creditos e imagens geradas ficam organizados por usuario, cliente e ensaio. O objetivo e entregar com profissionalismo sem transformar o processo em planilhas soltas e prompts perdidos.</p></Card>
+          <SecurityTrustGrid />
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-14 md:px-8">
+        <Card className="border-gold/25 bg-gold/10 p-6 md:p-8">
+          <h2 className="text-2xl font-semibold">IA acelera, mas revisao humana continua essencial</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">O PhotoForge organiza clientes, fotos, creditos e entregas para reduzir improviso. A geracao com IA deve sempre ser revisada antes de ser enviada para a cliente.</p>
+        </Card>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-16 md:px-8">
         <SectionHeader eyebrow="Planos" title="Escolha um caminho para comecar" />
         <div className="mt-8 grid gap-5 md:grid-cols-3">
           {[
-            ["Comunidade", "Melhor para membros", "Para alunos que querem vender ensaios com IA pagando menos por creditos.", ["Creditos com condicao especial", "Templates e atualizacoes primeiro", "Ideal para aprender vendendo"], "Entrar como membro"],
-            ["Publico", "Comece simples", "Para testar a plataforma e comprar creditos avulsos sem compromisso.", ["Acesso ao fluxo completo", "Creditos avulsos", "Bom para validar a oferta"], "Comecar teste"],
-            ["Pro", "Uso profissional", "Para quem pretende atender mais clientes e operar com volume.", ["Mais controle de operacao", "Historico e galeria organizados", "Pensado para escala futura"], "Quero usar no volume"]
-          ].map(([plan, badge, text, bullets, cta]) => <Card key={plan as string} className="hover:border-cyan/40"><StatusBadge tone={plan === "Comunidade" ? "good" : "default"}>{badge as string}</StatusBadge><h3 className="mt-4 text-2xl font-semibold">{plan as string}</h3><p className="mt-3 text-sm leading-6 text-slate-400">{text as string}</p><div className="mt-5 grid gap-2">{(bullets as string[]).map((item) => <div key={item} className="flex gap-2 text-sm text-slate-300"><CheckCircle2 className="mt-0.5 h-4 w-4 text-cyan" />{item}</div>)}</div><Button href="/register" className="mt-6 w-full" variant={plan === "Publico" ? "primary" : "secondary"}>{cta as string}</Button></Card>)}
+            ["Comunidade", "Melhor custo para membros", "Para alunos que querem vender ensaios com IA pagando menos por creditos.", ["Creditos com condicao especial", "Templates e atualizacoes primeiro", "Ideal para aprender vendendo"], "Entrar como membro"],
+            ["Publico", "Teste inicial", "Para testar a plataforma e comprar creditos avulsos sem compromisso.", ["Acesso ao fluxo completo", "Creditos avulsos", "Bom para validar a oferta"], "Comecar teste"],
+            ["Pro", "Mais volume", "Para quem pretende atender mais clientes e operar com volume.", ["Mais controle de operacao", "Historico e galeria organizados", "Pensado para escala futura"], "Quero usar no volume"]
+          ].map(([plan, badge, text, bullets, cta]) => <Card key={plan as string} className={plan === "Comunidade" ? "border-cyan/50 bg-cyan/10 shadow-[0_24px_80px_rgba(45,212,191,.12)] hover:border-cyan" : "hover:border-cyan/40"}><StatusBadge tone={plan === "Comunidade" ? "good" : "default"}>{badge as string}</StatusBadge><h3 className="mt-4 text-2xl font-semibold">{plan as string}</h3><p className="mt-3 text-sm leading-6 text-slate-400">{text as string}</p><div className="mt-5 grid gap-2">{(bullets as string[]).map((item) => <div key={item} className="flex gap-2 text-sm text-slate-300"><CheckCircle2 className="mt-0.5 h-4 w-4 text-cyan" />{item}</div>)}</div><Button href="/register" className="mt-6 w-full" variant={plan === "Publico" ? "primary" : "secondary"}>{cta as string}</Button></Card>)}
         </div>
       </section>
 

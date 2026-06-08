@@ -1,4 +1,4 @@
-import { Camera, CheckCircle2, Download, Heart, Image as ImageIcon, Sparkles, UserRound } from "lucide-react";
+import { Camera, CheckCircle2, Download, Heart, Image as ImageIcon, LockKeyhole, ShieldCheck, Sparkles, UserRound, WalletCards } from "lucide-react";
 import { clsx } from "clsx";
 import Image from "next/image";
 import { Button, Card, StatusBadge } from "@/components/ui";
@@ -70,8 +70,11 @@ function LandingImage({ src, alt, label, priority, className, sizes = "(min-widt
   );
 }
 
-export function ClientAvatar({ name, className }: { name?: string; className?: string }) {
+export function ClientAvatar({ name, src, className }: { name?: string; src?: string; className?: string }) {
   const initials = (name || "Cliente").split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "CL";
+  if (src) {
+    return <div className={clsx("relative h-11 w-11 overflow-hidden rounded-full border border-white/10 bg-gradient-to-br from-cyan/80 to-violet/80", className)}><Image src={src} alt={name || "Cliente"} fill sizes="44px" className="object-cover" /></div>;
+  }
   return <div className={clsx("grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-gradient-to-br from-cyan/80 to-violet/80 text-sm font-semibold text-white", className)}>{initials}</div>;
 }
 
@@ -87,7 +90,7 @@ export function HeroProductMockup() {
         <div className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <ClientAvatar name="Marina Alves" />
+              <ClientAvatar name="Marina Alves" src="/assets/landing/upload-rosto-sorrindo.png" />
               <div>
                 <p className="text-sm text-slate-400">Marina Alves</p>
                 <h3 className="text-xl font-semibold">Ensaio Aniversario Luxo</h3>
@@ -124,11 +127,12 @@ export function OrderToDeliveryMockup() {
   const checklist = ["Fotos obrigatorias", "Consentimento", "Creditos", "Estilo escolhido"];
   return (
     <div className="rounded-lg border border-white/10 bg-panel/95 p-4 shadow-premium">
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="relative grid gap-5 lg:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr]">
         <Card className="bg-ink/70">
           <p className="text-xs uppercase text-slate-500">Cliente</p>
-          <div className="mt-4 flex items-center gap-3"><ClientAvatar name="Marina Alves" /><div><p className="font-semibold">Marina Alves</p><p className="text-xs text-slate-400">Aguardando fotos</p></div></div>
+          <div className="mt-4 flex items-center gap-3"><ClientAvatar name="Marina Alves" src="/assets/landing/upload-rosto-sorrindo.png" /><div><p className="font-semibold">Marina Alves</p><p className="text-xs text-slate-400">Aguardando fotos</p></div></div>
         </Card>
+        <div className="hidden self-center text-center text-slate-500 lg:block">→</div>
         <Card className="bg-ink/70">
           <p className="text-xs uppercase text-slate-500">Fotos</p>
           <div className="mt-4 grid grid-cols-4 gap-2">{[
@@ -139,16 +143,35 @@ export function OrderToDeliveryMockup() {
           ].map((src, index) => <LandingImage key={src} src={src} alt={`Foto obrigatoria ${index + 1}`} sizes="160px" className="aspect-[3/4]" />)}</div>
           <div className="mt-3"><StatusBadge tone="good">Todas enviadas</StatusBadge></div>
         </Card>
+        <div className="hidden self-center text-center text-slate-500 lg:block">→</div>
         <Card className="bg-ink/70">
           <p className="text-xs uppercase text-slate-500">Geracao</p>
           <div className="mt-4 grid gap-2">{checklist.map((item) => <div key={item} className="flex items-center justify-between rounded-lg border border-line bg-white/[.03] px-3 py-2 text-xs"><span>{item}</span><StatusBadge tone="good">OK</StatusBadge></div>)}</div>
         </Card>
+        <div className="hidden self-center text-center text-slate-500 lg:block">→</div>
         <Card className="bg-ink/70">
           <p className="text-xs uppercase text-slate-500">Entrega</p>
           <LandingImage src="/assets/landing/gallery-preview.png" alt="Galeria organizada de imagens geradas" sizes="(min-width: 1024px) 20vw, 100vw" className="mt-4 aspect-[16/10]" />
           <Button variant="secondary" className="mt-4 w-full">Baixar selecao</Button>
         </Card>
       </div>
+    </div>
+  );
+}
+
+export function SecurityTrustGrid() {
+  const items = [
+    ["Autorizacao de uso de imagem", "Consentimento registrado antes da geracao.", ShieldCheck],
+    ["Fotos por cliente", "Referencias organizadas no fluxo de cada ensaio.", ImageIcon],
+    ["Creditos controlados", "Saldo visivel para evitar geracoes sem controle.", WalletCards],
+    ["Revisao humana", "Entrega final precisa ser avaliada antes de enviar.", LockKeyhole]
+  ];
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {items.map(([title, text, Icon]) => {
+        const I = Icon as typeof ShieldCheck;
+        return <div key={title as string} className="rounded-lg border border-line bg-ink/70 p-4"><I className="h-5 w-5 text-cyan" /><h3 className="mt-3 font-semibold">{title as string}</h3><p className="mt-2 text-sm leading-5 text-slate-400">{text as string}</p></div>;
+      })}
     </div>
   );
 }
@@ -227,7 +250,7 @@ export function MiniGalleryActions() {
 export function MiniClientCard() {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[.04] p-3">
-      <ClientAvatar name="Marina Alves" />
+      <ClientAvatar name="Marina Alves" src="/assets/landing/upload-rosto-sorrindo.png" />
       <div>
         <p className="font-semibold">Marina Alves</p>
         <p className="text-xs text-slate-400">Pronta para gerar</p>
