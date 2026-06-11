@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Camera, ChevronDown, GalleryHorizontal, Headphones, History, LayoutDashboard, LogOut, Plus, Settings, Shield, Sparkles, User, Users, WalletCards } from "lucide-react";
 import { Button, Logo, StatusBadge } from "@/components/ui";
+import { isDemoMode } from "@/lib/demoMode";
+import { loadState as loadDemoState } from "@/lib/demoStore";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
 
@@ -32,6 +34,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function loadRole() {
+      if (isDemoMode()) {
+        const demoState = loadDemoState();
+        setProfile(demoState.profile);
+        setCredits(demoState.credits.balance);
+        setIsAdmin(false);
+        return;
+      }
       const supabase = createSupabaseBrowserClient();
       const {
         data: { user }
@@ -47,6 +56,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function logout() {
+    if (isDemoMode()) {
+      window.location.href = "/";
+      return;
+    }
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -87,7 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between gap-4">
             <div className="lg:hidden"><Logo /></div>
             <div className="hidden lg:block">
-              <p className="text-sm text-slate-400">Organize clientes, gere ensaios e entregue imagens em menos tempo.</p>
+              <div className="flex items-center gap-3"><p className="text-sm text-slate-400">Organize clientes, gere ensaios e entregue imagens em menos tempo.</p>{isDemoMode() ? <StatusBadge tone="warn">Modo demo ativo</StatusBadge> : null}</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="hidden items-center gap-3 rounded-lg border border-line bg-panel2 px-3 py-2 md:flex">
@@ -112,6 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="mt-3 flex gap-2 overflow-x-auto lg:hidden">
+            {isDemoMode() ? <StatusBadge tone="warn">Modo demo ativo</StatusBadge> : null}
             {nav.filter((item) => item.href !== "/admin" || isAdmin).slice(0, 8).map((item) => <Button key={item.href} href={item.href} variant="ghost">{item.label}</Button>)}
           </div>
         </header>

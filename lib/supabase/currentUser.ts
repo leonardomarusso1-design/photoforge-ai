@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { demoUserId, isDemoMode } from "@/lib/demoMode";
 import type { Profile } from "@/lib/types";
 
 function toError(error: unknown, fallback: string) {
@@ -10,6 +11,17 @@ function toError(error: unknown, fallback: string) {
 }
 
 export async function getCurrentAuthUser(supabase: SupabaseClient): Promise<User> {
+  if (isDemoMode()) {
+    return {
+      id: demoUserId,
+      email: "demo@photoforge.ai",
+      user_metadata: { name: "Usuario Demo" },
+      app_metadata: {},
+      aud: "authenticated",
+      created_at: new Date().toISOString()
+    } as User;
+  }
+
   const {
     data: { user },
     error
@@ -23,6 +35,7 @@ export async function getCurrentAuthUser(supabase: SupabaseClient): Promise<User
 }
 
 export async function getCurrentUserId(supabase: SupabaseClient): Promise<string> {
+  if (isDemoMode()) return demoUserId;
   const user = await getCurrentAuthUser(supabase);
   return user.id;
 }

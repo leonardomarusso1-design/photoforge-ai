@@ -35,8 +35,9 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isProtected = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
-  if (!user && isProtected) {
+  if (!user && isProtected && !(demoMode && (pathname === "/app" || pathname.startsWith("/app/")))) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("next", pathname);

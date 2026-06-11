@@ -10,6 +10,8 @@ import { buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremium
 import { auditReferencePhoto, summarizePhotoQuality } from "@/lib/ai/photoQuality";
 import { Button, Card, EmptyState, Field, inputClass, MetricCard, StatusBadge } from "@/components/ui";
 import { ClientAvatar, EditorialImagePlaceholder, EmptyGalleryState, MiniGalleryActions, RecentShootPreview, UploadKindForType, UploadVisualCard } from "@/components/visual";
+import { demoUserId, isDemoMode } from "@/lib/demoMode";
+import { loadState as loadDemoState, saveState as saveDemoState, uid } from "@/lib/demoStore";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentAuthUser, getCurrentUserId } from "@/lib/supabase/currentUser";
 
@@ -30,6 +32,10 @@ function useDemoState() {
   async function load() {
     setLoadError("");
     try {
+      if (isDemoMode()) {
+        setState(loadDemoState());
+        return;
+      }
       const user = await getCurrentAuthUser(supabase);
       if (!user?.email) return;
       const userId = user.id;
@@ -100,6 +106,7 @@ function useDemoState() {
   }, []);
 
   const commit = (next: DemoState) => {
+    if (isDemoMode()) saveDemoState(next);
     setState(next);
   };
   return { state, commit, reload: load, supabase, loadError };
@@ -542,7 +549,7 @@ export function ClientsPage() {
 
 export function ClientFormPage() {
   const router = useRouter();
-  const { state, supabase, loadError } = useDemoState();
+  const { state, commit, supabase, loadError } = useDemoState();
   const [form, setForm] = useState({ name: "", whatsapp: "", email: "", city: "", age: "", notes: "", status: "new" as ClientStatus });
   const [errorMessage, setErrorMessage] = useState("");
   if (loadError) return <LoadErrorState message={loadError} />;
@@ -569,6 +576,26 @@ export function ClientFormPage() {
     }
     if (form.age && (Number.isNaN(Number(form.age)) || Number(form.age) < 0 || Number(form.age) > 130)) {
       setErrorMessage("Informe uma idade valida entre 0 e 130.");
+      return;
+    }
+
+    if (isDemoMode()) {
+      const client: Client = {
+        id: uid("client"),
+        user_id: demoUserId,
+        name: form.name,
+        whatsapp: form.whatsapp,
+        email: form.email || undefined,
+        city: form.city || undefined,
+        age: Number(form.age) || undefined,
+        notes: form.notes || undefined,
+        status: form.status,
+        total_revenue: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      commit({ ...state!, clients: [client, ...state!.clients] });
+      router.push(`/app/clients/${client.id}`);
       return;
     }
 
@@ -617,7 +644,7 @@ export function ClientFormPage() {
 }
 
 export function ClientDetailPage({ id }: { id: string }) {
-  const { state, reload, supabase, loadError } = useDemoState();
+  const { state, commit, reload, supabase, loadError } = useDemoState();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -660,6 +687,26 @@ export function ClientDetailPage({ id }: { id: string }) {
       return;
     }
     setSaving(true);
+    if (isDemoMode()) {
+      const updatedAt = new Date().toISOString();
+      commit({
+        ...state!,
+        clients: state!.clients.map((item) => item.id === currentClient.id ? {
+          ...item,
+          name: form.name,
+          whatsapp: form.whatsapp,
+          email: form.email,
+          city: form.city || undefined,
+          age: Number(form.age) || undefined,
+          notes: form.notes || undefined,
+          status: form.status,
+          updated_at: updatedAt
+        } : item)
+      });
+      setSaving(false);
+      setEditing(false);
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const { error } = await supabase
       .from("clients")
@@ -693,6 +740,18 @@ export function ClientDetailPage({ id }: { id: string }) {
     }
     setEditError("");
     setDeleting(true);
+    if (isDemoMode()) {
+      const deletedAt = new Date().toISOString();
+      commit({
+        ...state!,
+        clients: state!.clients.map((item) => item.id === currentClient.id ? { ...item, deleted_at: deletedAt, status: "cancelled", updated_at: deletedAt } : item),
+        shoots: state!.shoots.map((shoot) => shoot.client_id === currentClient.id ? { ...shoot, deleted_at: deletedAt, status: "archived", updated_at: deletedAt } : shoot),
+        generatedImages: state!.generatedImages.map((image) => image.client_id === currentClient.id ? { ...image, deleted_at: deletedAt } : image)
+      });
+      setDeleting(false);
+      router.push("/app/clients");
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const deletedAt = new Date().toISOString();
 
@@ -826,7 +885,7 @@ export function ShootsPage() {
 export function ShootCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { state, supabase, loadError } = useDemoState();
+  const { state, commit, supabase, loadError } = useDemoState();
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState("");
   const [form, setForm] = useState<Partial<Shoot>>({ title: "", category: "Aniversario", sold_price: 0, quantity: 4, consent_confirmed: false, provider: "mock" });
@@ -870,6 +929,48 @@ export function ShootCreatePage() {
       return null;
     }
     setFlowError("");
+    if (isDemoMode()) {
+      const now = new Date().toISOString();
+      const shoot: Shoot = {
+        ...(draftShoot ?? {}),
+        id: draftShoot?.id ?? uid("shoot"),
+        user_id: demoUserId,
+        client_id: client.id,
+        title: form.title || "Novo ensaio",
+        category: form.category || "Personalizado",
+        status: "draft",
+        sold_price: Number(form.sold_price) || 0,
+        outfit: form.outfit || undefined,
+        outfit_color: form.outfit_color || undefined,
+        shoes: form.shoes || undefined,
+        accessories: form.accessories || undefined,
+        hair: form.hair || undefined,
+        makeup: form.makeup || undefined,
+        location: form.location || undefined,
+        mood: form.mood || undefined,
+        pose: form.pose || undefined,
+        expression: form.expression || undefined,
+        lighting: form.lighting || undefined,
+        photo_style: form.photo_style || undefined,
+        free_notes: form.free_notes || undefined,
+        credits_used: 0,
+        provider: state!.generationConfig.effectiveProvider,
+        quantity: selectedQuantity,
+        consent_confirmed: Boolean(form.consent_confirmed),
+        consent_internal_use: Boolean(form.consent_internal_use),
+        consent_whatsapp_example: Boolean(form.consent_whatsapp_example),
+        consent_portfolio: Boolean(form.consent_portfolio),
+        consent_ads: Boolean(form.consent_ads),
+        consent_no_public_use: Boolean(form.consent_no_public_use),
+        recreate_reference_mode: Boolean(form.recreate_reference_mode),
+        recreate_options: form.recreate_options ?? null,
+        created_at: draftShoot?.created_at ?? now,
+        updated_at: now
+      } as Shoot;
+      setDraftShoot(shoot);
+      commit({ ...state!, shoots: draftShoot ? state!.shoots.map((item) => item.id === shoot.id ? shoot : item) : [shoot, ...state!.shoots] });
+      return shoot;
+    }
     const userId = await getCurrentUserId(supabase);
     const payload = {
       user_id: userId,
@@ -952,6 +1053,41 @@ export function ShootCreatePage() {
     }
     const shoot = await ensureDraftShoot();
     if (!shoot || !client) return;
+    if (isDemoMode()) {
+      const referencePhoto: ReferencePhoto = {
+        id: uid("ref"),
+        user_id: demoUserId,
+        client_id: client.id,
+        shoot_id: shoot.id,
+        type,
+        storage_path: "",
+        file_url: URL.createObjectURL(file),
+        quality_status: "approved",
+        quality_score: 92,
+        quality_issues: [],
+        quality_recommendation: "Foto aceita para demonstracao visual.",
+        can_be_primary_identity: ["face_neutral", "face_smiling", "full_body_front", "full_body_side"].includes(type),
+        has_face: type.includes("face"),
+        face_clear: type.includes("face"),
+        face_visible: type.includes("face"),
+        body_visible: type.includes("body"),
+        resolution_ok: true,
+        lighting_quality: "good",
+        notes: file.name,
+        created_at: new Date().toISOString()
+      };
+      setUploadedPhotos((current) => ({ ...current, [type]: referencePhoto }));
+      setUploadPreviews((current) => {
+        if (current[type]) URL.revokeObjectURL(current[type]);
+        return { ...current, [type]: referencePhoto.file_url };
+      });
+      commit({
+        ...state!,
+        referencePhotos: [referencePhoto, ...state!.referencePhotos.filter((photo) => !(photo.shoot_id === shoot.id && photo.type === type))]
+      });
+      setFlowError("");
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const imageInspection = await inspectImageFile(file);
     const audit = auditReferencePhoto({
@@ -1035,6 +1171,21 @@ export function ShootCreatePage() {
   async function removeReferencePhoto(type: string) {
     const shoot = draftShoot;
     if (!shoot) return;
+    if (isDemoMode()) {
+      commit({ ...state!, referencePhotos: state!.referencePhotos.filter((photo) => !(photo.shoot_id === shoot.id && photo.type === type)) });
+      setUploadedPhotos((currentPhotos) => {
+        const next = { ...currentPhotos };
+        delete next[type];
+        return next;
+      });
+      setUploadPreviews((current) => {
+        if (current[type]) URL.revokeObjectURL(current[type]);
+        const next = { ...current };
+        delete next[type];
+        return next;
+      });
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const current = uploadedPhotos[type] ?? existingRefs.find((ref) => ref.type === type);
     const pathToRemove = current?.storage_path || current?.file_url;
@@ -1069,6 +1220,17 @@ export function ShootCreatePage() {
     if (!client) return;
     const shoot = await ensureDraftShoot();
     if (!shoot) return;
+    if (isDemoMode()) {
+      const updatedAt = new Date().toISOString();
+      const updatedShoot = { ...shoot, status: target === "generate" ? "ready" : "draft", consent_confirmed: Boolean(form.consent_confirmed), updated_at: updatedAt } as Shoot;
+      commit({
+        ...state!,
+        shoots: state!.shoots.map((item) => item.id === updatedShoot.id ? updatedShoot : item),
+        clients: state!.clients.map((item) => item.id === client.id ? { ...item, total_revenue: Math.max(item.total_revenue, Number(form.sold_price) || item.total_revenue), status: "ready", updated_at: updatedAt } : item)
+      });
+      router.push(`/app/shoots/${shoot.id}`);
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const { error } = await supabase
       .from("shoots")
@@ -1434,7 +1596,7 @@ function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { 
 }
 
 export function ShootDetailPage({ id }: { id: string }) {
-  const { state, reload, supabase, loadError } = useDemoState();
+  const { state, commit, reload, supabase, loadError } = useDemoState();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -1469,6 +1631,33 @@ export function ShootDetailPage({ id }: { id: string }) {
     }
     if (file.size > 10 * 1024 * 1024) {
       setEditError("A imagem precisa ter no maximo 10 MB.");
+      return;
+    }
+    if (isDemoMode()) {
+      const referencePhoto: ReferencePhoto = {
+        id: uid("ref"),
+        user_id: demoUserId,
+        client_id: client.id,
+        shoot_id: currentShoot.id,
+        type,
+        storage_path: "",
+        file_url: URL.createObjectURL(file),
+        quality_status: "approved",
+        quality_score: 92,
+        quality_issues: [],
+        quality_recommendation: "Foto aceita para demonstracao visual.",
+        can_be_primary_identity: ["face_neutral", "face_smiling", "full_body_front", "full_body_side"].includes(type),
+        has_face: type.includes("face"),
+        face_clear: type.includes("face"),
+        face_visible: type.includes("face"),
+        body_visible: type.includes("body"),
+        resolution_ok: true,
+        lighting_quality: "good",
+        notes: file.name,
+        created_at: new Date().toISOString()
+      };
+      commit({ ...state!, referencePhotos: [referencePhoto, ...state!.referencePhotos.filter((photo) => !(photo.shoot_id === currentShoot.id && photo.type === type))] });
+      setUploadPreviews((current) => ({ ...current, [type]: referencePhoto.file_url }));
       return;
     }
     const userId = await getCurrentUserId(supabase);
@@ -1532,6 +1721,16 @@ export function ShootDetailPage({ id }: { id: string }) {
 
   async function removeDetailReferencePhoto(type: string) {
     setEditError("");
+    if (isDemoMode()) {
+      commit({ ...state!, referencePhotos: state!.referencePhotos.filter((photo) => !(photo.shoot_id === currentShoot.id && photo.type === type)) });
+      setUploadPreviews((current) => {
+        if (current[type]) URL.revokeObjectURL(current[type]);
+        const next = { ...current };
+        delete next[type];
+        return next;
+      });
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const current = refs.find((ref) => ref.type === type);
     const pathToRemove = current?.storage_path || current?.file_url;
@@ -1584,6 +1783,12 @@ export function ShootDetailPage({ id }: { id: string }) {
       consent_confirmed_at: form.consent_confirmed ? new Date().toISOString() : null,
       updated_at: new Date().toISOString()
     };
+    if (isDemoMode()) {
+      const updatedAt = new Date().toISOString();
+      commit({ ...state!, shoots: state!.shoots.map((item) => item.id === currentShoot.id ? { ...item, ...payload, updated_at: updatedAt } as Shoot : item) });
+      setEditing(false);
+      return;
+    }
     let { error: saveError } = await supabase.from("shoots").update(payload).eq("id", currentShoot.id).eq("user_id", userId);
     if (saveError?.message?.includes("'quantity' column")) {
       const { quantity, ...fallbackPayload } = payload;
@@ -1612,6 +1817,50 @@ export function ShootDetailPage({ id }: { id: string }) {
       setError("Creditos insuficientes. Compre creditos para gerar este ensaio.");
       return;
     }
+    if (isDemoMode()) {
+      const now = new Date().toISOString();
+      const creditsCharged = shootCreditsNeeded;
+      const newImages = Array.from({ length: currentShoot.quantity }, (_, index) => ({
+        id: uid("image"),
+        user_id: demoUserId,
+        client_id: currentShoot.client_id,
+        shoot_id: currentShoot.id,
+        file_url: `/api/placeholder?seed=demo-${currentShoot.id}-${Date.now()}-${index}`,
+        prompt_used: prompt,
+        provider: state!.generationConfig.effectiveProvider === "gemini" ? "gemini-demo" : "demo",
+        model: state!.generationConfig.effectiveProvider === "gemini" ? (process.env.NEXT_PUBLIC_DEMO_MODE ? "demo-safe-preview" : "gemini") : "demo-v1",
+        status: "completed" as const,
+        width: 1024,
+        height: 1365,
+        seed: Date.now() + index,
+        cost_estimate: 0,
+        is_favorite: false,
+        created_at: now
+      }));
+      commit({
+        ...state!,
+        shoots: state!.shoots.map((item) => item.id === currentShoot.id ? { ...item, status: "completed", generated_prompt: prompt, negative_prompt: defaultNegativePrompt, credits_used: creditsCharged, updated_at: now } : item),
+        generatedImages: [...newImages, ...state!.generatedImages],
+        generationLogs: [{
+          id: uid("log"),
+          user_id: demoUserId,
+          shoot_id: currentShoot.id,
+          provider: state!.generationConfig.effectiveProvider === "gemini" ? "gemini-demo" : "demo",
+          model: "demo-safe-preview",
+          request_payload: { demo_mode: true, prompt },
+          response_payload: { images: newImages.length },
+          status: "success",
+          credits_charged: creditsCharged,
+          cost_estimate: 0,
+          created_at: now
+        }, ...state!.generationLogs],
+        credits: { ...state!.credits, balance: Math.max(0, state!.credits.balance - creditsCharged), total_used: state!.credits.total_used + creditsCharged, updated_at: now },
+        creditTransactions: [{ id: uid("tx"), user_id: demoUserId, type: "usage", amount: -creditsCharged, description: `Demo: geracao do ensaio ${currentShoot.title}`, related_shoot_id: currentShoot.id, created_at: now }, ...state!.creditTransactions]
+      });
+      setBusy(false);
+      setError("Modo demo ativo: resultado gerado com placeholder seguro, sem chamada real de IA.");
+      return;
+    }
     const response = await fetch("/api/generate-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shoot: currentShoot, client, referencePhotos: refs }) });
     const data = await response.json();
     setBusy(false);
@@ -1630,6 +1879,17 @@ export function ShootDetailPage({ id }: { id: string }) {
     }
     setError("");
     setDeleting(true);
+    if (isDemoMode()) {
+      const deletedAt = new Date().toISOString();
+      commit({
+        ...state!,
+        shoots: state!.shoots.map((item) => item.id === currentShoot.id ? { ...item, deleted_at: deletedAt, status: "archived", updated_at: deletedAt } : item),
+        generatedImages: state!.generatedImages.map((image) => image.shoot_id === currentShoot.id ? { ...image, deleted_at: deletedAt } : image)
+      });
+      setDeleting(false);
+      router.push("/app/shoots");
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const deletedAt = new Date().toISOString();
 
@@ -1716,7 +1976,7 @@ function PromptPreview({ prompt, negative }: { prompt: string; negative: string 
 }
 
 export function GalleryPage() {
-  const { state, reload, supabase, loadError } = useDemoState();
+  const { state, commit, reload, supabase, loadError } = useDemoState();
   const [clientFilter, setClientFilter] = useState("");
   const [shootFilter, setShootFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -1726,6 +1986,10 @@ export function GalleryPage() {
   const isAdmin = state.profile.role === "admin";
 
   async function updateImage(id: string, values: Partial<GeneratedImage>) {
+    if (isDemoMode()) {
+      commit({ ...state!, generatedImages: state!.generatedImages.map((image) => image.id === id ? { ...image, ...values } : image) });
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const { error } = await supabase.from("generated_images").update(values).eq("id", id).eq("user_id", userId);
     if (error) {
@@ -1736,6 +2000,10 @@ export function GalleryPage() {
   }
 
   async function markShootDelivered(shootId: string) {
+    if (isDemoMode()) {
+      commit({ ...state!, shoots: state!.shoots.map((shoot) => shoot.id === shootId ? { ...shoot, status: "delivered", updated_at: new Date().toISOString() } : shoot) });
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const { error } = await supabase.from("shoots").update({ status: "delivered", updated_at: new Date().toISOString() }).eq("id", shootId).eq("user_id", userId);
     if (error) logSupabaseError("Supabase error", error);
@@ -1743,6 +2011,10 @@ export function GalleryPage() {
   }
 
   async function markPortfolio(image: GeneratedImage) {
+    if (isDemoMode()) {
+      commit({ ...state!, generatedImages: state!.generatedImages.map((item) => item.id === image.id ? { ...item, portfolio_authorized: !item.portfolio_authorized } : item) });
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const { error } = await supabase.from("generated_images").update({ portfolio_authorized: !image.portfolio_authorized }).eq("id", image.id).eq("user_id", userId);
     if (error?.message?.includes("portfolio_authorized")) {
@@ -1895,7 +2167,7 @@ export function HistoryPage() {
 }
 
 export function SettingsPage() {
-  const { state, reload, supabase, loadError } = useDemoState();
+  const { state, commit, reload, supabase, loadError } = useDemoState();
   const [profileError, setProfileError] = useState("");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   if (loadError) return <LoadErrorState message={loadError} />;
@@ -1912,6 +2184,12 @@ export function SettingsPage() {
       return;
     }
     setUploadingAvatar(true);
+    if (isDemoMode()) {
+      const avatarUrl = URL.createObjectURL(file);
+      commit({ ...state!, profile: { ...state!.profile, avatar_url: avatarUrl, updated_at: new Date().toISOString() } });
+      setUploadingAvatar(false);
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
     const storagePath = `${userId}/${Date.now()}-${safeName}`;
@@ -1935,6 +2213,10 @@ export function SettingsPage() {
 
   async function removeAvatar() {
     setProfileError("");
+    if (isDemoMode()) {
+      commit({ ...state!, profile: { ...state!.profile, avatar_url: undefined, updated_at: new Date().toISOString() } });
+      return;
+    }
     const userId = await getCurrentUserId(supabase);
     const { error } = await supabase.from("profiles").update({ avatar_url: null, updated_at: new Date().toISOString() }).eq("user_id", userId);
     if (error) {
