@@ -7,7 +7,7 @@ export type ClientStatus =
   | "review"
   | "delivered"
   | "cancelled";
-export type ShootStatus = "draft" | "ready" | "generating" | "completed" | "failed" | "delivered" | "archived";
+export type ShootStatus = "draft" | "waiting_photos" | "ready" | "generating" | "completed" | "review" | "approved" | "failed" | "delivered" | "archived";
 export type LegacyQualityStatus = "boa" | "media" | "ruim";
 export type PhotoQualityStatus = "pending" | "approved" | "warning" | "rejected";
 export type LightingQuality = "good" | "medium" | "poor" | LegacyQualityStatus;
@@ -72,6 +72,13 @@ export type Shoot = {
   quantity: GenerationQuantity;
   consent_confirmed: boolean;
   consent_confirmed_at?: string | null;
+  consent_internal_use?: boolean | null;
+  consent_whatsapp_example?: boolean | null;
+  consent_portfolio?: boolean | null;
+  consent_ads?: boolean | null;
+  consent_no_public_use?: boolean | null;
+  recreate_reference_mode?: boolean | null;
+  recreate_options?: Record<string, boolean> | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -117,6 +124,8 @@ export type GeneratedImage = {
   seed: number;
   cost_estimate: number;
   is_favorite?: boolean;
+  portfolio_authorized?: boolean | null;
+  delivered_at?: string | null;
   created_at: string;
   deleted_at?: string | null;
 };

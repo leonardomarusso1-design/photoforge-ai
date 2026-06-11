@@ -5,7 +5,7 @@ import { imageQuantityError, isValidImageQuantity } from "@/lib/ai/providerRules
 import { qualityBlockMessage, summarizePhotoQuality } from "@/lib/ai/photoQuality";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Client, ReferencePhoto, Shoot } from "@/lib/types";
+import type { Client, GeneratedImage, ReferencePhoto, Shoot } from "@/lib/types";
 
 function logSupabaseError(context: string, error: unknown) {
   if (!error) return;
@@ -17,6 +17,82 @@ function logSupabaseError(context: string, error: unknown) {
     code: supabaseError.code,
     full: error
   });
+}
+
+function storageRouteForPath(path: string) {
+  return `/api/generated-image/${path.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function parseDataImageUrl(value: string) {
+  const match = value.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return {
+    mimeType: match[1],
+    buffer: Buffer.from(match[2], "base64")
+  };
+}
+
+async function loadImageBuffer(fileUrl: string) {
+  const inline = parseDataImageUrl(fileUrl);
+  if (inline) return inline;
+
+  const response = await fetch(fileUrl);
+  if (!response.ok) {
+    throw new Error(`Nao foi possivel baixar a imagem gerada: ${response.status}`);
+  }
+  const mimeType = response.headers.get("content-type") || "image/jpeg";
+  return {
+    mimeType,
+    buffer: Buffer.from(await response.arrayBuffer())
+  };
+}
+
+async function persistGeneratedImagesToStorage(args: {
+  admin: ReturnType<typeof createSupabaseAdminClient>;
+  userId: string;
+  clientId: string;
+  shootId: string;
+  images: GeneratedImage[];
+}) {
+  const saved: GeneratedImage[] = [];
+  for (const [index, image] of args.images.entries()) {
+    const { mimeType, buffer } = await loadImageBuffer(image.file_url);
+    const extension = mimeType.includes("webp") ? "webp" : mimeType.includes("png") ? "png" : "jpg";
+    const storagePath = `${args.userId}/${args.clientId}/${args.shootId}/${Date.now()}-${index}-${crypto.randomUUID()}.${extension}`;
+    const { error } = await args.admin.storage
+      .from("generated-images")
+      .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
+
+    if (error) {
+      logSupabaseError("Supabase error", error);
+      throw new Error("Nao foi possivel salvar a imagem gerada no storage.");
+    }
+
+    saved.push({
+      ...image,
+      file_url: storageRouteForPath(storagePath)
+    });
+  }
+  return saved;
+}
+
+async function signedReferenceUrl(args: {
+  admin: ReturnType<typeof createSupabaseAdminClient>;
+  photo: ReferencePhoto;
+}) {
+  const referencePathOrUrl = args.photo.storage_path || args.photo.file_url;
+  if (!referencePathOrUrl) return null;
+  if (/^https?:\/\//.test(referencePathOrUrl) || referencePathOrUrl.startsWith("data:")) {
+    return referencePathOrUrl;
+  }
+  const { data: signed, error } = await args.admin.storage
+    .from("client-reference-photos")
+    .createSignedUrl(referencePathOrUrl, 60 * 60);
+  if (error || !signed?.signedUrl) {
+    if (error) logSupabaseError("Supabase error", error);
+    throw new Error("Nao foi possivel preparar as fotos de referencia para geracao real.");
+  }
+  return signed.signedUrl;
 }
 
 export async function POST(request: Request) {
@@ -142,25 +218,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Creditos insuficientes." }, { status: 400 });
     }
 
+    const identityTypes = ["face_neutral", "face_smiling", "full_body_front", "full_body_side"];
+    const orderedReferencePhotos = [
+      ...trustedReferencePhotos.filter((photo) => identityTypes.includes(photo.type)),
+      ...trustedReferencePhotos.filter((photo) => !identityTypes.includes(photo.type))
+    ];
     const referenceImageUrls: string[] = [];
     if (realProvider) {
-      const referencePathOrUrl = primaryReference?.storage_path || primaryReference?.file_url;
-      if (!referencePathOrUrl) {
-        return NextResponse.json({ error: "Nao foi possivel preparar a foto principal para geracao real." }, { status: 400 });
+      for (const photo of orderedReferencePhotos) {
+        const signedUrl = await signedReferenceUrl({ admin, photo });
+        if (signedUrl) referenceImageUrls.push(signedUrl);
       }
-      if (/^https?:\/\//.test(referencePathOrUrl)) {
-        referenceImageUrls.push(referencePathOrUrl);
-      } else {
-        const { data: signed, error: signedError } = await admin.storage
-          .from("client-reference-photos")
-          .createSignedUrl(referencePathOrUrl, 60 * 60);
-        if (signedError || !signed?.signedUrl) {
-          if (signedError) logSupabaseError("Supabase error", signedError);
-          return NextResponse.json({ error: "Nao foi possivel preparar a foto principal para geracao real." }, { status: 400 });
-        }
-        referenceImageUrls.push(signed.signedUrl);
+      if (referenceImageUrls.length === 0) {
+        return NextResponse.json({ error: "Nao foi possivel preparar as fotos de identidade para geracao real." }, { status: 400 });
       }
     }
+
+    const pendingModel = providerName === "gemini"
+      ? process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image"
+      : realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1";
 
     const { data: pendingLog, error: pendingLogError } = await admin
       .from("generation_logs")
@@ -168,14 +244,14 @@ export async function POST(request: Request) {
         user_id: user.id,
         shoot_id: trustedShoot.id,
         provider: providerName,
-        model: realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1",
+        model: pendingModel,
         request_payload: {
           image_count: trustedShoot.quantity,
           quantity: trustedShoot.quantity,
           shoot_id: trustedShoot.id,
           provider: providerName,
-          model: realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1",
-          credits_charged: creditsCharged,
+          model: pendingModel,
+          credits_charged_on_success: creditsCharged,
           composition_goal: compositionGoal,
           aspect_ratio: aspectRatio,
           primary_identity_photo_id: primaryReference?.id ?? null,
@@ -185,8 +261,8 @@ export async function POST(request: Request) {
           quality_summary: photoQuality.summary
         },
         status: "pending",
-        credits_charged: creditsCharged,
-        cost_estimate: realProvider ? trustedShoot.quantity * 0.04 : trustedShoot.quantity
+        credits_charged: 0,
+        cost_estimate: providerName === "replicate_flux" ? trustedShoot.quantity * 0.04 : 0
       })
       .select("id")
       .single();
@@ -204,6 +280,32 @@ export async function POST(request: Request) {
       .eq("id", trustedShoot.id)
       .eq("user_id", user.id);
 
+    const result = await generateImagesWithProvider({
+      shoot: trustedShoot,
+      client: trustedClient,
+      referencePhotos: trustedReferencePhotos,
+      referenceImageUrls,
+      credits,
+      providerName,
+      isAdmin,
+      creditCost: creditsCharged,
+      qualityLog: photoQuality.summary,
+      primaryIdentityPhotoId: primaryReference?.id ?? null,
+      referencePhotoIds: trustedReferencePhotos.map((photo) => photo.id),
+      rejectedPhotoIds: photoQuality.rejected.map((photo) => photo.id),
+      warningPhotoIds: photoQuality.warning.map((photo) => photo.id)
+    });
+
+    const storedImages = realProvider
+      ? await persistGeneratedImagesToStorage({
+          admin,
+          userId: user.id,
+          clientId: trustedClient.id,
+          shootId: trustedShoot.id,
+          images: result.images
+        })
+      : result.images;
+
     const { error: debitError } = await admin
       .from("credits")
       .update({
@@ -217,7 +319,7 @@ export async function POST(request: Request) {
       logSupabaseError("Supabase error", debitError);
       await admin.from("generation_logs").update({ status: "failed", error_message: debitError.message }).eq("id", generationLogId);
       await admin.from("shoots").update({ status: "failed", updated_at: now }).eq("id", trustedShoot.id).eq("user_id", user.id);
-      return NextResponse.json({ error: "Nao foi possivel descontar creditos agora." }, { status: 400 });
+      return NextResponse.json({ error: "Nao foi possivel descontar creditos apos a geracao." }, { status: 400 });
     }
 
     debited = true;
@@ -237,23 +339,8 @@ export async function POST(request: Request) {
       throw usageTxError;
     }
 
-    const result = await generateImagesWithProvider({
-      shoot: trustedShoot,
-      client: trustedClient,
-      referencePhotos: trustedReferencePhotos,
-      referenceImageUrls,
-      credits,
-      providerName,
-      isAdmin,
-      creditCost: creditsCharged,
-      qualityLog: photoQuality.summary,
-      primaryIdentityPhotoId: primaryReference?.id ?? null,
-      referencePhotoIds: trustedReferencePhotos.map((photo) => photo.id),
-      rejectedPhotoIds: photoQuality.rejected.map((photo) => photo.id),
-      warningPhotoIds: photoQuality.warning.map((photo) => photo.id)
-    });
     const { error: imagesError } = await admin.from("generated_images").insert(
-      result.images.map((image) => ({
+      storedImages.map((image) => ({
         user_id: user.id,
         client_id: image.client_id,
         shoot_id: image.shoot_id,
@@ -305,7 +392,7 @@ export async function POST(request: Request) {
       throw shootUpdateError;
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, images: storedImages });
   } catch (error) {
     logSupabaseError("Supabase error", error);
     if (admin && debited && refundContext) {

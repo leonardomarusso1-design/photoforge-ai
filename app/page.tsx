@@ -46,8 +46,10 @@ export default function LandingPage() {
       <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 md:px-8">
         <Logo />
         <nav className="flex items-center gap-2">
-          <Button href="/login" variant="ghost">Login</Button>
-          <Button href="/register">Comecar agora</Button>
+          <Button href="/login" variant="ghost">Entrar</Button>
+          <Button href="/register" variant="ghost">Criar conta</Button>
+          <Button href="#planos" variant="secondary">Ver planos</Button>
+          <Button href="/register">Comprar creditos</Button>
         </nav>
       </header>
 
@@ -109,7 +111,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 md:px-8">
+      <section id="planos" className="mx-auto max-w-7xl px-4 py-16 md:px-8">
         <SectionHeader eyebrow="Templates" title="Templates prontos para vender mais rapido" text="Use ideias de ensaio como ponto de partida para criar ofertas mais claras e entregaveis mais consistentes." />
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {templates.map(([title, description, badge, image]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} imageSrc={`/assets/landing/${image}`} />)}

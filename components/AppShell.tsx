@@ -3,17 +3,21 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Camera, ChevronDown, GalleryHorizontal, Headphones, LayoutDashboard, LogOut, Plus, Settings, Shield, User, Users, WalletCards } from "lucide-react";
+import { BarChart3, Camera, ChevronDown, GalleryHorizontal, Headphones, History, LayoutDashboard, LogOut, Plus, Settings, Shield, Sparkles, User, Users, WalletCards } from "lucide-react";
 import { Button, Logo, StatusBadge } from "@/components/ui";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
 
 const nav = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/app/shoots/new", label: "Novo ensaio", icon: Plus },
   { href: "/app/clients", label: "Clientes", icon: Users },
   { href: "/app/shoots", label: "Ensaios", icon: Camera },
+  { href: "/app/templates", label: "Templates", icon: Sparkles },
   { href: "/app/gallery", label: "Galeria", icon: GalleryHorizontal },
   { href: "/app/credits", label: "Creditos", icon: WalletCards },
+  { href: "/app/results", label: "Resultados", icon: BarChart3 },
+  { href: "/app/history", label: "Historico", icon: History },
   { href: "/app/settings", label: "Configuracoes", icon: Settings },
   { href: "/app/support", label: "Suporte", icon: Headphones },
   { href: "/admin", label: "Admin", icon: Shield }

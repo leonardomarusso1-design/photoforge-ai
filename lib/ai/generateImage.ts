@@ -1,5 +1,7 @@
 import { buildCompositionGoal, buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremiumPrompt";
+import { buildGeminiPromptFromShoot } from "@/lib/ai/promptBuilder";
 import { creditsPerImageForProvider, imageQuantityError, isRealProvider, isValidImageQuantity, normalizeProviderName } from "@/lib/ai/providerRules";
+import { geminiProvider } from "@/lib/ai/providers/geminiProvider";
 import { mockProvider } from "@/lib/ai/providers/mockProvider";
 import { replicateFluxProvider } from "@/lib/ai/providers/replicateFluxProvider";
 import type { ImageProvider } from "@/lib/ai/providers/base";
@@ -7,6 +9,7 @@ import type { Client, CreditState, GenerationLog, ReferencePhoto, Shoot } from "
 export { creditsPerImageForProvider, isRealProvider, normalizeProviderName };
 
 function selectProvider(providerName: string): ImageProvider {
+  if (normalizeProviderName(providerName) === "gemini") return geminiProvider;
   if (normalizeProviderName(providerName) === "replicate_flux") return replicateFluxProvider;
   return mockProvider;
 }
@@ -46,7 +49,9 @@ export async function generateImagesWithProvider(args: {
   if (args.credits.balance < creditCost) {
     throw new Error("Creditos insuficientes.");
   }
-  const prompt = buildPremiumPrompt(args.shoot, args.client, args.referencePhotos);
+  const prompt = providerName === "gemini"
+    ? buildGeminiPromptFromShoot(args.shoot, args.client, args.referencePhotos)
+    : buildPremiumPrompt(args.shoot, args.client, args.referencePhotos);
   const compositionGoal = buildCompositionGoal(args.shoot);
   const aspectRatio = compositionGoal.includes("medium-wide") || compositionGoal.includes("full-body") ? "4:3" : "3:4";
   const negativePrompt = defaultNegativePrompt;

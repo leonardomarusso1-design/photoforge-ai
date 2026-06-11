@@ -20,10 +20,10 @@ export const categories = [
 ];
 
 export const requiredPhotoTypes = [
-  { type: "face_neutral", label: "Rosto neutro" },
-  { type: "face_smiling", label: "Rosto sorrindo" },
-  { type: "full_body_front", label: "Corpo inteiro frente" },
-  { type: "full_body_side", label: "Corpo inteiro lado" }
+  { type: "face_neutral", label: "Rosto neutro/serio", description: "Boa luz, rosto nitido, sem filtro forte." },
+  { type: "face_smiling", label: "Rosto sorrindo", description: "Sorriso natural para preservar boca, olhos e expressao." },
+  { type: "full_body_front", label: "Corpo inteiro de frente", description: "Corpo visivel para manter proporcoes reais." },
+  { type: "full_body_side", label: "Corpo inteiro de lado", description: "Opcional recomendado para melhorar corpo, bracos e pernas." }
 ];
 
 export const optionalPhotoTypes = [
@@ -34,17 +34,19 @@ export const optionalPhotoTypes = [
 ];
 
 export const templates = [
-  ["Aniversario Luxo", "Aniversario", "Cenario premium com decoracao elegante e luz de estudio."],
-  ["Aniversario Baloes", "Aniversario", "Composicao festiva realista com baloes e acabamento editorial."],
-  ["Ensaio Executivo Premium", "Profissional/empresa", "Retrato corporativo moderno, confiavel e sofisticado."],
-  ["Ensaio Praia Realista", "Praia", "Luz natural, vento suave, tons reais de pele e lifestyle premium."],
-  ["Ensaio Casal Romantico", "Casal", "Quimica natural, contato elegante e expressoes autenticas."],
-  ["Ensaio Fitness Academia", "Fitness", "Luz atletica, postura forte e proporcoes naturais."],
-  ["Ensaio Bebe Estudio", "Infantil/bebe", "Cena segura, delicada e com textura de pele realista."],
-  ["Ensaio Gestante Elegante", "Gestante", "Iluminacao emocional, styling suave e composicao respeitosa."],
-  ["Ensaio Casual Urbano", "Casual", "Ambiente natural, pose relaxada e elegancia cotidiana."],
-  ["Ensaio Beleza Estudio", "Beleza/estudio", "Close realista, maquiagem refinada e luz profissional."]
-].map(([name, category, description], index) => ({ id: `template-${index + 1}`, name, category, description }));
+  { name: "Aniversario Luxo", category: "Aniversario", subtype: "luxo", description: "Decoracao premium, pose elegante e luz editorial.", image: "/assets/landing/template-aniversario.png", credits: 10, popular: true },
+  { name: "Aniversario Baloes", category: "Aniversario", subtype: "baloes", description: "Cenario festivo realista com baloes e composicao limpa.", image: "/assets/landing/template-aniversario.png", credits: 10 },
+  { name: "Aniversario com Bolo", category: "Aniversario", subtype: "bolo", description: "Foto de celebracao com bolo, detalhes reais e sorriso natural.", image: "/assets/landing/template-aniversario.png", credits: 10 },
+  { name: "Casual Praia", category: "Casual", subtype: "praia", description: "Lifestyle leve com luz natural, vento e pele realista.", image: "/assets/landing/template-casual.png", credits: 10 },
+  { name: "Casual Urbano", category: "Casual", subtype: "urbano", description: "Rua, cafe ou parque com energia espontanea e moderna.", image: "/assets/landing/template-casual.png", credits: 10 },
+  { name: "Profissional Corporativo", category: "Profissional/empresa", subtype: "corporativo", description: "Retrato confiavel para marca pessoal, empresa ou LinkedIn.", image: "/assets/landing/template-profissional.png", credits: 10, popular: true },
+  { name: "Profissional Consultorio", category: "Profissional/empresa", subtype: "consultorio", description: "Imagem profissional para saude, estetica e atendimento.", image: "/assets/landing/template-profissional.png", credits: 10 },
+  { name: "Casal Romantico", category: "Casal", subtype: "romantico", description: "Quimica natural, contato elegante e composicao emocional.", image: "/assets/landing/template-casal.png", credits: 10 },
+  { name: "Praia Realista", category: "Praia", subtype: "lifestyle", description: "Oceano, areia, luz de fim de tarde e corpo proporcional.", image: "/assets/landing/template-praia.png", credits: 10 },
+  { name: "Gestante Elegante", category: "Gestante", subtype: "estudio", description: "Luz suave, styling delicado e composicao respeitosa.", image: "/assets/landing/template-gestante.png", credits: 10 },
+  { name: "Infantil Seguro", category: "Infantil/bebe", subtype: "estudio", description: "Cena infantil delicada, segura e com aparencia fotografica.", image: "/assets/landing/template-infantil.png", credits: 10 },
+  { name: "Fitness Academia", category: "Fitness", subtype: "academia", description: "Postura forte, luz atletica e proporcoes naturais.", image: "/assets/landing/template-fitness.png", credits: 10 }
+].map((template, index) => ({ id: `template-${index + 1}`, ...template }));
 
 const now = new Date().toISOString();
 const userId = "demo-user";

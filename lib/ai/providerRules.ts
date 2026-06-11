@@ -4,6 +4,7 @@ export const MOCK_IMAGE_QUANTITIES: GenerationQuantity[] = [4, 8, 16];
 export const REAL_IMAGE_QUANTITIES: GenerationQuantity[] = [1, 2, 4];
 
 export function normalizeProviderName(provider?: string) {
+  if (provider === "gemini" || provider === "google_gemini" || provider === "gemini_image") return "gemini";
   if (provider === "replicate" || provider === "replicate_flux" || provider === "flux_kontext_pro") return "replicate_flux";
   return "mock";
 }

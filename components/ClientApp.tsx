@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BarChart3, Camera, CheckCircle2, Copy, Download, Heart, Image as ImageIcon, Mail, MessageCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Users, WalletCards } from "lucide-react";
-import { categories, optionalPhotoTypes, requiredPhotoTypes } from "@/lib/demoData";
+import { categories, optionalPhotoTypes, requiredPhotoTypes, templates } from "@/lib/demoData";
 import type { Client, ClientStatus, DemoState, GeneratedImage, GenerationQuantity, ReferencePhoto, Shoot } from "@/lib/types";
 import { buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremiumPrompt";
 import { auditReferencePhoto, summarizePhotoQuality } from "@/lib/ai/photoQuality";
@@ -206,11 +206,13 @@ function getShootCoverImage(shoot: Shoot, images: GeneratedImage[], shoots: Shoo
 
 const shootStatusLabels: Record<string, string> = {
   draft: "Rascunho",
-  ready: "Pronto",
+  waiting_photos: "Aguardando fotos",
+  ready: "Pronto para gerar",
   generating: "Gerando",
-  completed: "Concluido",
-  failed: "Falhou",
+  completed: "Gerado",
   review: "Em revisao",
+  approved: "Aprovado",
+  failed: "Erro",
   delivered: "Entregue",
   archived: "Arquivado"
 };
@@ -218,8 +220,11 @@ const shootStatusLabels: Record<string, string> = {
 const shootStatusFilterOptions = [
   { value: "all", label: "Todos" },
   { value: "draft", label: "Rascunhos" },
-  { value: "completed", label: "Concluidos" },
+  { value: "waiting_photos", label: "Aguardando fotos" },
+  { value: "ready", label: "Prontos" },
+  { value: "completed", label: "Gerados" },
   { value: "review", label: "Em revisao" },
+  { value: "delivered", label: "Entregues" },
   { value: "failed", label: "Falharam" },
   { value: "generating", label: "Gerando" }
 ];
@@ -229,9 +234,9 @@ function shootStatusLabel(status: string) {
 }
 
 function shootStatusTone(status: string): "default" | "good" | "warn" | "bad" {
-  if (status === "completed" || status === "delivered") return "good";
+  if (status === "completed" || status === "approved" || status === "delivered") return "good";
   if (status === "failed") return "bad";
-  if (status === "generating" || status === "review" || status === "ready") return "warn";
+  if (status === "generating" || status === "review" || status === "ready" || status === "waiting_photos") return "warn";
   return "default";
 }
 
@@ -241,6 +246,36 @@ function shootActionLabel(status: string) {
   if (status === "failed") return "Ver erro";
   if (status === "generating") return "Acompanhar";
   return "Abrir";
+}
+
+function isCommunityPlan(plan?: string) {
+  return plan === "community" || plan === "Comunidade";
+}
+
+function calculateResults(state: DemoState) {
+  const activeShoots = state.shoots.filter((shoot) => !shoot.deleted_at);
+  const generatedShoots = activeShoots.filter((shoot) => ["completed", "review", "approved", "delivered"].includes(shoot.status));
+  const revenue = activeShoots.reduce((sum, shoot) => sum + (shoot.sold_price || 0), 0);
+  const creditsUsed = state.credits.total_used || activeShoots.reduce((sum, shoot) => sum + (shoot.credits_used || 0), 0);
+  const estimatedCost = state.generationLogs.reduce((sum, log) => sum + (Number(log.cost_estimate) || 0), 0);
+  const activeClients = state.clients.filter((client) => !client.deleted_at);
+  return {
+    activeShoots,
+    generatedShoots,
+    revenue,
+    creditsUsed,
+    estimatedCost,
+    profit: revenue - estimatedCost,
+    activeClients,
+    averageTicket: activeClients.length ? revenue / activeClients.length : 0
+  };
+}
+
+function templateCategoryForShoot(category?: string) {
+  const normalized = category ?? "";
+  if (normalized.includes("Profissional")) return "Profissional";
+  if (normalized.includes("Infantil")) return "Infantil";
+  return normalized;
 }
 
 function formatShootDate(value?: string | null) {
@@ -333,11 +368,14 @@ export function DashboardPage() {
   const { state, loadError } = useDemoState();
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
-  const revenue = state.clients.reduce((sum, client) => sum + client.total_revenue, 0);
-  const cost = state.generationLogs.reduce((sum, log) => sum + log.cost_estimate, 0);
+  const results = calculateResults(state);
+  const revenue = results.revenue;
+  const cost = results.estimatedCost;
   const activeClients = state.clients.filter((client) => !client.deleted_at);
   const activeShoots = state.shoots.filter((shoot) => !shoot.deleted_at);
   const recentImages = state.generatedImages.filter((image) => !image.deleted_at).slice(0, 4);
+  const lowCredits = state.credits.balance < Math.max(10, state.generationConfig.creditsPerImage * 2);
+  const dashboardTemplates = Array.from(new Map(templates.filter((template) => template.popular).concat(templates).map((template) => [template.id, template])).values()).slice(0, 4);
   const incompleteShoot = activeShoots.find((shoot) => shoot.status === "draft" || shoot.status === "ready" || shoot.status === "failed");
   const latestShoot = activeShoots[0];
   const nextStep = activeClients.length === 0
@@ -349,21 +387,21 @@ export function DashboardPage() {
         : { title: "Pronto para criar o proximo ensaio?", text: "Seu fluxo esta organizado. Comece uma nova entrega quando quiser.", href: "/app/shoots/new", label: "Novo ensaio" };
   return (
     <>
-      <PageTitle title={`Ola, ${firstName(state.profile.name)}. Pronto para criar o proximo ensaio?`} text="Acompanhe clientes, ensaios, creditos e entregas em um painel pensado para operacao diaria." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Novo ensaio</Button>} />
-      <Card className="mb-6 grid gap-4 border-cyan/25 bg-cyan/10 md:grid-cols-[1fr_auto] md:items-center">
+      <PageTitle title={`Ola, ${firstName(state.profile.name)}. Pronto para criar o proximo ensaio?`} text="Acompanhe clientes, ensaios, creditos e entregas em um painel pensado para operacao diaria." action={<div className="flex flex-wrap gap-2"><Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Gerar novo ensaio</Button><Button href="/app/credits" variant="secondary"><WalletCards className="h-4 w-4" /> Comprar creditos</Button></div>} />
+      <Card className={`mb-6 grid gap-4 md:grid-cols-[1fr_auto] md:items-center ${lowCredits ? "border-gold/35 bg-gold/10" : "border-cyan/25 bg-cyan/10"}`}>
         <div>
-          <StatusBadge tone="good">Proximo passo</StatusBadge>
+          <StatusBadge tone={lowCredits ? "warn" : "good"}>{lowCredits ? "Saldo baixo" : "Proximo passo"}</StatusBadge>
           <h2 className="mt-3 text-xl font-semibold">{nextStep.title}</h2>
-          <p className="mt-2 text-sm text-slate-300">{nextStep.text}</p>
+          <p className="mt-2 text-sm text-slate-300">{lowCredits ? "Voce esta perto de ficar sem creditos. Recarregue antes de prometer novas entregas." : nextStep.text}</p>
         </div>
-        <Button href={nextStep.href}>{nextStep.label}</Button>
+        <div className="flex flex-wrap gap-2"><Button href={nextStep.href}>{nextStep.label}</Button>{lowCredits ? <Button href="/app/credits" variant="secondary">Comprar creditos</Button> : null}</div>
       </Card>
-      {state.credits.balance < 20 ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Seus creditos estao acabando. Recarregue para continuar gerando ensaios.</div> : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <MetricCard label="Creditos restantes" value={state.credits.balance} Icon={WalletCards} tone="cyan" />
+        <MetricCard label="Creditos usados" value={results.creditsUsed} Icon={Sparkles} tone="gold" />
         <MetricCard label="Clientes cadastrados" value={activeClients.length} Icon={Users} tone="violet" />
         <MetricCard label="Ensaios criados" value={activeShoots.length} Icon={Camera} tone="lime" />
-        <MetricCard label="Imagens criadas" value={state.generatedImages.filter((img) => !img.deleted_at).length} Icon={ImageIcon} tone="gold" />
+        <MetricCard label="Imagens criadas" value={state.generatedImages.filter((img) => !img.deleted_at).length} Icon={ImageIcon} tone="violet" />
         <MetricCard label="Receita estimada" value={money(revenue)} Icon={BarChart3} tone="cyan" />
         <MetricCard label="Lucro estimado" value={money(revenue - cost)} Icon={CheckCircle2} tone="lime" />
       </div>
@@ -383,12 +421,30 @@ export function DashboardPage() {
           <div className="mt-4 grid gap-3">
             <Button href="/app/clients/new" variant="secondary">Criar cliente</Button>
             <Button href="/app/shoots/new" variant="secondary">Criar ensaio</Button>
+            <Button href="/app/templates" variant="secondary">Ver templates</Button>
             <Button href="/app/gallery" variant="secondary">Abrir galeria</Button>
-            <Button href="/app/credits" variant="secondary">Solicitar creditos</Button>
+            <Button href="/app/credits" variant="secondary">Comprar creditos</Button>
             {state.profile.role === "admin" ? <Button href="/admin/logs" variant="secondary">Ver logs admin</Button> : null}
           </div>
         </Card>
       </div>
+      <Card className="mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Templates mais usados</h2>
+            <p className="mt-1 text-sm text-slate-400">Atalhos para ensaios que alunos costumam vender mais rapido.</p>
+          </div>
+          <Button href="/app/templates" variant="ghost">Ver todos</Button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {dashboardTemplates.map((template) => (
+            <Link key={template.id} href={`/app/shoots/new?template=${template.id}`} className="overflow-hidden rounded-lg border border-line bg-ink/70 transition hover:-translate-y-0.5 hover:border-cyan/50">
+              <img src={template.image} alt={template.name} className="aspect-[4/3] w-full object-cover" />
+              <div className="p-3"><p className="font-semibold">{template.name}</p><p className="mt-1 text-xs text-slate-400">{template.description}</p></div>
+            </Link>
+          ))}
+        </div>
+      </Card>
       <Card className="mt-6">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Imagens recentes</h2>
@@ -769,14 +825,30 @@ export function ShootsPage() {
 
 export function ShootCreatePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { state, supabase, loadError } = useDemoState();
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState("");
   const [form, setForm] = useState<Partial<Shoot>>({ title: "", category: "Aniversario", sold_price: 0, quantity: 4, consent_confirmed: false, provider: "mock" });
+  const [selectedTemplate, setSelectedTemplate] = useState("");
   const [draftShoot, setDraftShoot] = useState<Shoot | null>(null);
   const [uploadedPhotos, setUploadedPhotos] = useState<Record<string, ReferencePhoto>>({});
   const [uploadPreviews, setUploadPreviews] = useState<Record<string, string>>({});
   const [flowError, setFlowError] = useState("");
+  useEffect(() => {
+    const templateId = searchParams.get("template");
+    const template = templates.find((item) => item.id === templateId);
+    if (template) {
+      setSelectedTemplate(template.id);
+      setForm((current) => ({
+        ...current,
+        category: template.category,
+        title: current.title || template.name,
+        photo_style: current.photo_style || "foto realista com celular moderno, estilo iPhone 15",
+        free_notes: current.free_notes || template.description
+      }));
+    }
+  }, [searchParams]);
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
   const client = state.clients.find((item) => item.id === selectedClient);
@@ -820,16 +892,33 @@ export function ShootCreatePage() {
       photo_style: form.photo_style || null,
       free_notes: form.free_notes || null,
       credits_used: 0,
-      provider: "mock",
+      provider: state!.generationConfig.effectiveProvider,
       quantity: selectedQuantity,
-      consent_confirmed: Boolean(form.consent_confirmed)
+      consent_confirmed: Boolean(form.consent_confirmed),
+      consent_internal_use: Boolean(form.consent_internal_use),
+      consent_whatsapp_example: Boolean(form.consent_whatsapp_example),
+      consent_portfolio: Boolean(form.consent_portfolio),
+      consent_ads: Boolean(form.consent_ads),
+      consent_no_public_use: Boolean(form.consent_no_public_use),
+      recreate_reference_mode: Boolean(form.recreate_reference_mode),
+      recreate_options: form.recreate_options ?? null
     };
 
-    const query = draftShoot
+    let query = draftShoot
       ? supabase.from("shoots").update(payload).eq("id", draftShoot.id).eq("user_id", userId)
       : supabase.from("shoots").insert(payload);
 
     let { data: shoot, error } = await query.select("*").single();
+
+    if (error?.message?.includes("consent_internal_use") || error?.message?.includes("recreate_reference_mode") || error?.message?.includes("recreate_options")) {
+      const { consent_internal_use, consent_whatsapp_example, consent_portfolio, consent_ads, consent_no_public_use, recreate_reference_mode, recreate_options, ...fallbackPayload } = payload;
+      query = draftShoot
+        ? supabase.from("shoots").update(fallbackPayload).eq("id", draftShoot.id).eq("user_id", userId)
+        : supabase.from("shoots").insert(fallbackPayload);
+      const fallback = await query.select("*").single();
+      shoot = fallback.data;
+      error = fallback.error;
+    }
 
     if (error?.message?.includes("'quantity' column")) {
       const { quantity, ...payloadWithoutQuantity } = payload;
@@ -983,11 +1072,23 @@ export function ShootCreatePage() {
     const userId = await getCurrentUserId(supabase);
     const { error } = await supabase
       .from("shoots")
-      .update({ status: target === "generate" ? "ready" : "draft", consent_confirmed: Boolean(form.consent_confirmed), consent_confirmed_at: form.consent_confirmed ? new Date().toISOString() : null, updated_at: new Date().toISOString() })
+      .update({
+        status: target === "generate" ? "ready" : "draft",
+        consent_confirmed: Boolean(form.consent_confirmed),
+        consent_confirmed_at: form.consent_confirmed ? new Date().toISOString() : null,
+        consent_internal_use: Boolean(form.consent_internal_use),
+        consent_whatsapp_example: Boolean(form.consent_whatsapp_example),
+        consent_portfolio: Boolean(form.consent_portfolio),
+        consent_ads: Boolean(form.consent_ads),
+        consent_no_public_use: Boolean(form.consent_no_public_use),
+        recreate_reference_mode: Boolean(form.recreate_reference_mode),
+        recreate_options: form.recreate_options ?? null,
+        updated_at: new Date().toISOString()
+      })
       .eq("id", shoot.id)
       .eq("user_id", userId);
 
-    if (error?.message?.includes("'consent_confirmed_at' column")) {
+    if (error?.message?.includes("'consent_confirmed_at' column") || error?.message?.includes("consent_internal_use") || error?.message?.includes("recreate_reference_mode") || error?.message?.includes("recreate_options")) {
       const fallback = await supabase
         .from("shoots")
         .update({ status: target === "generate" ? "ready" : "draft", consent_confirmed: Boolean(form.consent_confirmed), updated_at: new Date().toISOString() })
@@ -1023,8 +1124,8 @@ export function ShootCreatePage() {
 
   return (
     <>
-      <PageTitle title="Criar ensaio" text="Fluxo guiado com checklist para garantir fotos, categoria, consentimento e creditos antes da geracao." />
-      <div className="mb-5 grid gap-2 md:grid-cols-5">{["Dados", "Fotos", "Referencias", "Personalizacao", "Geracao"].map((label, index) => {
+      <PageTitle title="Criar ensaio" text="Fluxo guiado para cliente, fotos, template, referencia, ajustes, revisao e geracao." />
+      <div className="mb-5 grid gap-2 md:grid-cols-7">{["Cliente", "Fotos", "Template", "Referencia", "Ajustes", "Revisao", "Gerar"].map((label, index) => {
         const current = step === index + 1;
         const done = step > index + 1;
         return <button key={label} onClick={() => setStep(index + 1)} className={`rounded-lg border px-3 py-3 text-left text-sm transition ${current ? "border-cyan bg-cyan/10 text-cyan" : done ? "border-cyan/30 bg-panel text-white" : "border-line bg-panel text-slate-400 hover:border-white/20"}`}><span className="mr-2 inline-grid h-6 w-6 place-items-center rounded-full bg-white/10 text-xs">{done ? "OK" : index + 1}</span>{label}</button>;
@@ -1039,17 +1140,25 @@ export function ShootCreatePage() {
           <Field label="Observacoes internas"><textarea className={inputClass} rows={3} value={form.free_notes ?? ""} onChange={(e) => setForm({ ...form, free_notes: e.target.value })} /></Field>
         </div>}
         {step === 2 && <PhotoStep refs={currentRefs} previews={uploadPreviews} onUpload={uploadReferencePhoto} onRemove={removeReferencePhoto} />}
-        {step === 3 && <div>
+        {step === 3 && <TemplatePickStep selectedTemplate={selectedTemplate} onSelect={(templateId) => {
+          const template = templates.find((item) => item.id === templateId);
+          if (!template) return;
+          setSelectedTemplate(template.id);
+          setForm({ ...form, category: template.category, title: form.title || template.name, photo_style: "foto realista com celular moderno, estilo iPhone 15", free_notes: [form.free_notes, template.description].filter(Boolean).join(" ") });
+        }} />}
+        {step === 4 && <div>
           <h2 className="text-lg font-semibold">Referencias opcionais</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">Use referencias para guiar roupa, pose, cenario ou detalhes importantes. A identidade deve vir das fotos principais.</p>
-          <div className="mt-4 rounded-lg border border-line bg-ink/60 p-4 text-sm text-slate-300">Referencias opcionais ajudam no estilo, mas nao substituem as fotos principais de rosto e corpo.</div>
+          <div className="mt-4 rounded-lg border border-line bg-ink/60 p-4 text-sm leading-6 text-slate-300">As fotos da cliente definem a identidade. A referencia serve apenas para pose, roupa, cenario e composicao.</div>
+          <RecreateReferenceMode form={form} setForm={setForm} />
           <div className="mt-4 grid gap-3 md:grid-cols-2">{optionalPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(currentRefs, photo.type)} preview={uploadPreviews[photo.type]} onUpload={uploadReferencePhoto} onRemove={removeReferencePhoto} />)}</div>
         </div>}
-        {step === 4 && <PersonalizationFields form={form} setForm={setForm} />}
-        {step === 5 && <GenerationStep state={state} form={form} setForm={setForm} client={client} readyPhotos={readyPhotos} ready={ready} />}
+        {step === 5 && <PersonalizationFields form={form} setForm={setForm} />}
+        {step === 6 && <ReviewStep form={form} client={client} refs={currentRefs} />}
+        {step === 7 && <GenerationStep state={state} form={form} setForm={setForm} client={client} readyPhotos={readyPhotos} ready={ready} />}
         <div className="mt-6 flex flex-wrap gap-3">
           {step > 1 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Voltar</Button> : null}
-          {step < 5 ? <Button onClick={nextStep}>Continuar</Button> : <Button disabled={!ready} onClick={() => saveDraft("generate")}>Salvar e preparar geracao</Button>}
+          {step < 7 ? <Button onClick={nextStep}>Proximo</Button> : <Button disabled={!ready} onClick={() => saveDraft("generate")}>Salvar e preparar geracao</Button>}
           <Button variant="ghost" onClick={() => saveDraft("draft")} disabled={!client || !form.title}>Salvar rascunho</Button>
           <Button href="/app/shoots" variant="ghost">Cancelar</Button>
         </div>
@@ -1058,10 +1167,121 @@ export function ShootCreatePage() {
   );
 }
 
+function TemplatePickStep({ selectedTemplate, onSelect }: { selectedTemplate: string; onSelect: (templateId: string) => void }) {
+  const grouped = ["Aniversario", "Casual", "Profissional/empresa", "Casal", "Praia", "Gestante", "Infantil/bebe", "Fitness"];
+  return (
+    <div className="grid gap-5">
+      <div>
+        <h2 className="text-lg font-semibold">Escolha o template do ensaio</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">O template complementa o prompt base de identidade. Ele nao substitui as fotos reais da cliente.</p>
+      </div>
+      <div className="grid gap-5">
+        {grouped.map((category) => {
+          const categoryTemplates = templates.filter((template) => template.category === category);
+          if (categoryTemplates.length === 0) return null;
+          return (
+            <div key={category}>
+              <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">{templateCategoryForShoot(category)}</h3><StatusBadge>{categoryTemplates.length} opcoes</StatusBadge></div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {categoryTemplates.map((template) => {
+                  const selected = selectedTemplate === template.id;
+                  return (
+                    <button key={template.id} type="button" onClick={() => onSelect(template.id)} className={`overflow-hidden rounded-lg border bg-ink/70 text-left transition hover:-translate-y-0.5 hover:border-cyan/60 ${selected ? "border-cyan shadow-premium" : "border-line"}`}>
+                      <img src={template.image} alt={template.name} className="aspect-[4/3] w-full object-cover" />
+                      <div className="p-3">
+                        <div className="flex flex-wrap gap-2"><StatusBadge tone={template.popular ? "good" : "default"}>{template.subtype}</StatusBadge><StatusBadge tone="warn">{template.credits} creditos</StatusBadge></div>
+                        <h4 className="mt-3 font-semibold">{template.name}</h4>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">{template.description}</p>
+                        <span className="mt-3 inline-flex text-sm font-semibold text-cyan">{selected ? "Selecionado" : "Usar template"}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RecreateReferenceMode({ form, setForm }: { form: Partial<Shoot>; setForm: (next: Partial<Shoot>) => void }) {
+  const options = [
+    ["same_pose", "Usar mesma pose"],
+    ["similar_outfit", "Usar roupa parecida"],
+    ["same_scene", "Usar mesmo ambiente"],
+    ["same_lighting", "Usar mesma iluminacao"],
+    ["change_age_number", "Alterar idade/numero de aniversario"],
+    ["keep_real_client", "Manter cliente real"],
+    ["keep_real_body", "Manter corpo real"],
+    ["keep_real_hair", "Manter cabelo real"],
+    ["keep_real_age", "Manter idade real"],
+    ["iphone_photo", "Aparencia de foto iPhone 15"]
+  ] as const;
+  const selected = form.recreate_options ?? {};
+  return (
+    <div className="mt-4 rounded-lg border border-cyan/25 bg-cyan/10 p-4">
+      <label className="flex items-start gap-3 text-sm text-slate-200">
+        <input type="checkbox" className="mt-1" checked={Boolean(form.recreate_reference_mode)} onChange={(event) => setForm({ ...form, recreate_reference_mode: event.target.checked })} />
+        <span><span className="block font-semibold">Modo recriar referencia</span><span className="mt-1 block text-slate-400">Use quando a cliente disser "quero igual essa", preservando a cliente real e usando a referencia apenas como direcao visual.</span></span>
+      </label>
+      {form.recreate_reference_mode ? (
+        <div className="mt-4 grid gap-2 md:grid-cols-2">
+          {options.map(([key, label]) => (
+            <label key={key} className="flex items-center gap-2 rounded-lg border border-line bg-ink/70 p-3 text-sm text-slate-300">
+              <input type="checkbox" checked={Boolean(selected[key])} onChange={(event) => setForm({ ...form, recreate_options: { ...selected, [key]: event.target.checked } })} />
+              {label}
+            </label>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ReviewStep({ form, client, refs }: { form: Partial<Shoot>; client?: Client; refs: ReferencePhoto[] }) {
+  const previewShoot = {
+    id: "preview",
+    user_id: "",
+    client_id: client?.id ?? "",
+    title: form.title || "Novo ensaio",
+    category: form.category || "Personalizado",
+    status: "draft",
+    sold_price: Number(form.sold_price) || 0,
+    credits_used: 0,
+    provider: "preview",
+    quantity: (form.quantity as GenerationQuantity) || 4,
+    consent_confirmed: Boolean(form.consent_confirmed),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...form
+  } as Shoot;
+  const prompt = client ? buildPremiumPrompt(previewShoot, client, refs) : "Selecione a cliente para visualizar o prompt.";
+  return (
+    <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
+      <Card className="bg-ink/60">
+        <h2 className="text-lg font-semibold">Revisao antes de gerar</h2>
+        <div className="mt-4 grid gap-2 text-sm text-slate-300">
+          <p>Cliente: {client?.name ?? "Nao selecionada"}</p>
+          <p>Template/categoria: {form.category || "-"}</p>
+          <p>Fotos enviadas: {refs.length}</p>
+          <p>Modo recriar referencia: {form.recreate_reference_mode ? "ativo" : "desativado"}</p>
+        </div>
+        <div className="mt-4 rounded-lg border border-line bg-panel/80 p-3 text-xs leading-5 text-slate-400">Confira se roupa, cenario, pose e consentimentos estao corretos. A geracao real so deve acontecer depois desta revisao.</div>
+      </Card>
+      <Card className="bg-ink/60">
+        <h2 className="text-lg font-semibold">Prompt montado</h2>
+        <pre className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-ink p-4 text-xs leading-5 text-slate-300">{prompt}</pre>
+      </Card>
+    </div>
+  );
+}
+
 function PhotoStep({ refs, previews, onUpload, onRemove }: { refs: ReferencePhoto[]; previews: Record<string, string>; onUpload: (type: string, file: File) => void; onRemove: (type: string) => void }) {
   return (
     <div className="grid gap-5">
-      <div className="rounded-lg border border-line bg-ink/60 p-4 text-sm leading-6 text-slate-300">Use uma foto nitida, bem iluminada e sem filtro forte. Para tatuagens visiveis, envie areas especificas nas referencias opcionais.</div>
+      <div className="rounded-lg border border-line bg-ink/60 p-4 text-sm leading-6 text-slate-300">Use fotos com boa luz, rosto nitido, sem filtro forte e corpo visivel. Quanto melhor a foto, melhor o resultado.</div>
       <div className="grid gap-3 md:grid-cols-2">{requiredPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={refs.find((ref) => ref.type === photo.type)} preview={previews[photo.type]} required onUpload={onUpload} onRemove={onRemove} />)}</div>
     </div>
   );
@@ -1160,6 +1380,14 @@ function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { 
     ["Consentimento confirmado", Boolean(form.consent_confirmed)],
     ["Creditos suficientes", state.credits.balance >= creditsNeeded]
   ] as const;
+  const consentFields = [
+    ["consent_confirmed", "Cliente autorizou gerar imagens"],
+    ["consent_internal_use", "Cliente autorizou uso interno"],
+    ["consent_whatsapp_example", "Cliente autorizou usar como exemplo no WhatsApp"],
+    ["consent_portfolio", "Cliente autorizou usar no portfolio"],
+    ["consent_ads", "Cliente autorizou usar em anuncios"],
+    ["consent_no_public_use", "Cliente nao autorizou divulgacao"]
+  ] as const;
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_.9fr]">
       <div className="grid gap-4">
@@ -1174,15 +1402,31 @@ function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { 
           </div>
         </Card>
         <Field label="Quantidade de imagens"><select className={inputClass} value={quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) as GenerationQuantity })}>{options.map((option) => <option key={option} value={option}>Gerar {option} {option === 1 ? "imagem" : "imagens"}</option>)}</select></Field>
-        <label className="flex items-start gap-3 rounded-lg border border-line bg-ink p-4 text-sm text-slate-300">
-          <input type="checkbox" className="mt-1" checked={Boolean(form.consent_confirmed)} onChange={(e) => setForm({ ...form, consent_confirmed: e.target.checked })} />
-          <span>Confirmo que tenho autorizacao da pessoa nas fotos para utilizar sua imagem na criacao deste ensaio com IA.</span>
-        </label>
+        <div className="rounded-lg border border-line bg-ink p-4">
+          <h3 className="font-semibold">Consentimento e autorizacoes</h3>
+          <div className="mt-3 grid gap-2">
+            {consentFields.map(([key, label]) => (
+              <label key={key} className="flex items-start gap-3 rounded-lg border border-line bg-panel/70 p-3 text-sm text-slate-300">
+                <input type="checkbox" className="mt-1" checked={Boolean(form[key])} onChange={(event) => {
+                  const next = { ...form, [key]: event.target.checked };
+                  if (key === "consent_no_public_use" && event.target.checked) {
+                    next.consent_whatsapp_example = false;
+                    next.consent_portfolio = false;
+                    next.consent_ads = false;
+                  }
+                  setForm(next);
+                }} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
       <div className="rounded-lg border border-line bg-ink p-4">
         <h3 className="font-semibold">Checklist de geracao</h3>
         <div className="mt-4 grid gap-2">{checklist.map(([label, ok]) => <div key={label} className="flex items-center justify-between text-sm"><span className="text-slate-300">{label}</span><StatusBadge tone={ok ? "good" : "warn"}>{ok ? "OK" : "Pendente"}</StatusBadge></div>)}</div>
         <p className="mt-4 text-xs text-slate-500">O botao so libera quando tudo estiver correto. Custo: {creditsNeeded} creditos.</p>
+        {state.credits.balance < creditsNeeded ? <Button href="/app/credits" className="mt-4 w-full"><WalletCards className="h-4 w-4" /> Comprar creditos</Button> : null}
         <StatusBadge tone={ready ? "good" : "warn"}>{ready ? "Pronto para gerar" : "Bloqueado"}</StatusBadge>
       </div>
     </div>
@@ -1214,6 +1458,8 @@ export function ShootDetailPage({ id }: { id: string }) {
   const detailQuantity = ((form.quantity as GenerationQuantity) ?? shoot.quantity) as GenerationQuantity;
   const editableDetailQuantity = detailQuantityOptions.includes(detailQuantity) ? detailQuantity : detailQuantityOptions[0];
   const detailCreditsNeeded = creditCostForQuantity(state, editableDetailQuantity);
+  const shootCreditsNeeded = creditCostForQuantity(state, shoot.quantity);
+  const canGenerateFromDetail = state.credits.balance >= shootCreditsNeeded;
 
   async function uploadDetailReferencePhoto(type: string, file: File) {
     setEditError("");
@@ -1361,7 +1607,12 @@ export function ShootDetailPage({ id }: { id: string }) {
   async function generate() {
     setBusy(true);
     setError("");
-    const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shoot: currentShoot, client, referencePhotos: refs }) });
+    if (!canGenerateFromDetail) {
+      setBusy(false);
+      setError("Creditos insuficientes. Compre creditos para gerar este ensaio.");
+      return;
+    }
+    const response = await fetch("/api/generate-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shoot: currentShoot, client, referencePhotos: refs }) });
     const data = await response.json();
     setBusy(false);
     if (!response.ok) {
@@ -1408,7 +1659,7 @@ export function ShootDetailPage({ id }: { id: string }) {
   }
   return (
     <>
-      <PageTitle title={shoot.title} text={`${client.name} - ${shoot.category} - ${shoot.quantity} imagens`} action={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={shoot.status === "completed"} onClick={startEditing}>Editar</Button><Button variant="danger" disabled={deleting || busy} onClick={deleteShoot}><Trash2 className="h-4 w-4" /> {deleting ? "Excluindo..." : confirmDelete ? "Confirmar exclusao" : "Excluir"}</Button>{confirmDelete ? <Button variant="ghost" disabled={deleting || busy} onClick={() => setConfirmDelete(false)}>Cancelar</Button> : null}<Button disabled={busy || deleting || shoot.status === "completed"} onClick={generate}>{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Gerar imagens</Button></div>} />
+      <PageTitle title={shoot.title} text={`${client.name} - ${shoot.category} - ${shoot.quantity} imagens`} action={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={shoot.status === "completed"} onClick={startEditing}>Editar</Button><Button variant="danger" disabled={deleting || busy} onClick={deleteShoot}><Trash2 className="h-4 w-4" /> {deleting ? "Excluindo..." : confirmDelete ? "Confirmar exclusao" : "Excluir"}</Button>{confirmDelete ? <Button variant="ghost" disabled={deleting || busy} onClick={() => setConfirmDelete(false)}>Cancelar</Button> : null}{!canGenerateFromDetail ? <Button href="/app/credits" variant="secondary"><WalletCards className="h-4 w-4" /> Comprar creditos</Button> : null}<Button disabled={busy || deleting || shoot.status === "completed" || !canGenerateFromDetail} onClick={generate}>{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Gerar foto</Button></div>} />
       {confirmDelete ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">Confirme para excluir este ensaio. As imagens vinculadas tambem sairao da galeria e do dashboard.</div> : null}
       {error ? <div className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div> : null}
       {state.generationConfig.realAiEnabledForAdmin ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-gold">Modo teste com IA real ativo. Cada imagem consome 10 créditos e pode gerar custo na API.</div> : null}
@@ -1484,6 +1735,24 @@ export function GalleryPage() {
     await reload();
   }
 
+  async function markShootDelivered(shootId: string) {
+    const userId = await getCurrentUserId(supabase);
+    const { error } = await supabase.from("shoots").update({ status: "delivered", updated_at: new Date().toISOString() }).eq("id", shootId).eq("user_id", userId);
+    if (error) logSupabaseError("Supabase error", error);
+    await reload();
+  }
+
+  async function markPortfolio(image: GeneratedImage) {
+    const userId = await getCurrentUserId(supabase);
+    const { error } = await supabase.from("generated_images").update({ portfolio_authorized: !image.portfolio_authorized }).eq("id", image.id).eq("user_id", userId);
+    if (error?.message?.includes("portfolio_authorized")) {
+      await navigator.clipboard?.writeText("Coluna portfolio_authorized ainda nao existe no Supabase. Rode a migration de consentimentos.");
+      return;
+    }
+    if (error) logSupabaseError("Supabase error", error);
+    await reload();
+  }
+
   const images = state.generatedImages
     .filter((img) => !img.deleted_at)
     .filter((img) => !clientFilter || img.client_id === clientFilter)
@@ -1502,20 +1771,20 @@ export function GalleryPage() {
           <Field label="Filtrar por ensaio"><select className={inputClass} value={shootFilter} onChange={(event) => setShootFilter(event.target.value)}><option value="">Todos os ensaios</option>{shootsForFilter.map((shoot) => <option key={shoot.id} value={shoot.id}>{shoot.title}</option>)}</select></Field>
         </div>
       </Card>
-      <GalleryGrid images={images} title="Todas as imagens" showProvider={isAdmin} clients={state.clients} shoots={state.shoots} onPreview={setPreview} onFavorite={(image) => updateImage(image.id, { is_favorite: !image.is_favorite })} onDelete={(image) => updateImage(image.id, { deleted_at: new Date().toISOString() })} />
+      <GalleryGrid images={images} title="Todas as imagens" showProvider={isAdmin} clients={state.clients} shoots={state.shoots} onPreview={setPreview} onFavorite={(image) => updateImage(image.id, { is_favorite: !image.is_favorite })} onDelete={(image) => updateImage(image.id, { deleted_at: new Date().toISOString() })} onPortfolio={markPortfolio} onDelivered={(image) => markShootDelivered(image.shoot_id)} />
       {preview ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={() => setPreview(null)}><div className="max-h-[90vh] max-w-4xl overflow-hidden rounded-lg border border-line bg-panel p-3" onClick={(event) => event.stopPropagation()}><img src={preview.file_url} alt="Preview" className="max-h-[78vh] w-full object-contain" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=preview-${preview.id}`; }} /><div className="mt-3 flex justify-end"><Button variant="secondary" onClick={() => setPreview(null)}>Fechar</Button></div></div></div> : null}
     </>
   );
 }
 
-function GalleryGrid({ images, title, showProvider = false, clients = [], shoots = [], onPreview, onFavorite, onDelete }: { images: GeneratedImage[]; title: string; showProvider?: boolean; clients?: Client[]; shoots?: Shoot[]; onPreview?: (image: GeneratedImage) => void; onFavorite?: (image: GeneratedImage) => void; onDelete?: (image: GeneratedImage) => void }) {
+function GalleryGrid({ images, title, showProvider = false, clients = [], shoots = [], onPreview, onFavorite, onDelete, onPortfolio, onDelivered }: { images: GeneratedImage[]; title: string; showProvider?: boolean; clients?: Client[]; shoots?: Shoot[]; onPreview?: (image: GeneratedImage) => void; onFavorite?: (image: GeneratedImage) => void; onDelete?: (image: GeneratedImage) => void; onPortfolio?: (image: GeneratedImage) => void; onDelivered?: (image: GeneratedImage) => void }) {
   return (
     <section className="mt-6">
       <h2 className="mb-4 text-lg font-semibold">{title}</h2>
       {images.length === 0 ? <EmptyGalleryState /> : <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{images.map((image, index) => {
         const shoot = shoots.find((item) => item.id === image.shoot_id);
         const client = clients.find((item) => item.id === image.client_id);
-        return <Card key={image.id} className="group overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50"><button type="button" className="block w-full" onClick={() => onPreview?.(image)}><img src={image.file_url} alt="Imagem gerada" className="aspect-[3/4] w-full object-cover transition duration-300 group-hover:scale-[1.02]" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=fallback-${image.id}-${index}`; }} /></button><div className="p-3"><div className="flex flex-wrap gap-2">{showProvider ? <StatusBadge tone="good">{image.provider}</StatusBadge> : <StatusBadge tone="good">Pronta</StatusBadge>}<StatusBadge tone="default">{client?.name ?? "Cliente"}</StatusBadge>{shoot?.category ? <StatusBadge tone="default">{shoot.category}</StatusBadge> : null}</div><div className="mt-3 flex items-center justify-between"><p className="text-xs text-slate-500">{shoot?.title ?? "Ensaio"}</p><div className="flex gap-2"><Button variant="ghost" title="Favoritar" onClick={() => onFavorite?.(image)}><Heart className={`h-4 w-4 ${image.is_favorite ? "fill-cyan text-cyan" : ""}`} /></Button><Button variant="ghost" title="Baixar" onClick={() => window.open(image.file_url, "_blank")}><Download className="h-4 w-4" /></Button><Button variant="ghost" title="Excluir" onClick={() => onDelete?.(image)}><Trash2 className="h-4 w-4" /></Button></div></div></div></Card>;
+        return <Card key={image.id} className="group overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50"><button type="button" className="block w-full" onClick={() => onPreview?.(image)}><img src={image.file_url} alt="Imagem gerada" className="aspect-[3/4] w-full object-cover transition duration-300 group-hover:scale-[1.02]" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=fallback-${image.id}-${index}`; }} /></button><div className="p-3"><div className="flex flex-wrap gap-2">{showProvider ? <StatusBadge tone="good">{image.provider}</StatusBadge> : <StatusBadge tone="good">Imagem gerada</StatusBadge>}<StatusBadge tone="default">{client?.name ?? "Cliente"}</StatusBadge>{shoot?.category ? <StatusBadge tone="default">{shoot.category}</StatusBadge> : null}<StatusBadge tone={shootStatusTone(shoot?.status ?? image.status)}>{shootStatusLabel(shoot?.status ?? image.status)}</StatusBadge>{image.portfolio_authorized ? <StatusBadge tone="good">Portfolio autorizado</StatusBadge> : null}</div><div className="mt-3"><p className="text-xs text-slate-500">{shoot?.title ?? "Ensaio"} - {formatShootDate(image.created_at)} - {shoot?.credits_used ?? image.cost_estimate} creditos</p><div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" title="Favoritar" onClick={() => onFavorite?.(image)}><Heart className={`h-4 w-4 ${image.is_favorite ? "fill-cyan text-cyan" : ""}`} /></Button><Button variant="ghost" title="Baixar" onClick={() => window.open(image.file_url, "_blank")}><Download className="h-4 w-4" /></Button><Button variant="ghost" title="Copiar prompt" onClick={() => navigator.clipboard?.writeText(image.prompt_used)}><Copy className="h-4 w-4" /></Button>{shoot ? <Button variant="ghost" title="Refazer com mesmo prompt" href={`/app/shoots/${shoot.id}`}><RefreshCw className="h-4 w-4" /></Button> : null}<Button variant="ghost" title="Marcar entregue" onClick={() => onDelivered?.(image)}>Entregue</Button><Button variant="ghost" title="Portfolio" onClick={() => onPortfolio?.(image)}>Portfolio</Button><Button variant="ghost" title="Excluir" onClick={() => onDelete?.(image)}><Trash2 className="h-4 w-4" /></Button></div></div></div></Card>;
       })}</div>}
     </section>
   );
@@ -1525,20 +1794,102 @@ export function CreditsPage() {
   const { state, loadError } = useDemoState();
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
+  const community = isCommunityPlan(state.profile.plan_type);
+  const packages = [
+    { name: "Starter", credits: 100, publicPrice: 97, memberPrice: 67, text: "Para testar ofertas e entregar os primeiros ensaios." },
+    { name: "Mais vendido", credits: 300, publicPrice: 247, memberPrice: 167, text: "Melhor equilibrio para alunos vendendo toda semana.", highlight: true },
+    { name: "Pro", credits: 1000, publicPrice: 697, memberPrice: 497, text: "Para operacao com volume e clientes recorrentes." }
+  ];
   return (
     <>
-      <PageTitle title="Creditos" text="Seus creditos controlam quantas imagens podem ser geradas. Pagamento real ainda nao esta ativo." />
-      <Card className="mb-6 border-cyan/25 bg-cyan/10">
-        <p className="text-sm text-slate-300">Saldo atual</p>
-        <div className="mt-2 text-5xl font-semibold">{state.credits.balance}</div>
-        <p className="mt-2 text-sm text-slate-400">Use com cuidado em cada ensaio e acompanhe o historico abaixo.</p>
+      <PageTitle title="Creditos" text="Veja saldo, uso e pacotes. A compra ainda fica preparada para conectar ao checkout." action={<Button disabled>Comprar creditos</Button>} />
+      <Card className="mb-6 grid gap-5 border-cyan/25 bg-cyan/10 md:grid-cols-3">
+        <div><p className="text-sm text-slate-300">Seus creditos</p><div className="mt-2 text-5xl font-semibold">{state.credits.balance}</div><p className="mt-2 text-sm text-slate-400">Saldo disponivel para novas geracoes.</p></div>
+        <div><p className="text-sm text-slate-300">Creditos usados</p><div className="mt-2 text-5xl font-semibold">{state.credits.total_used}</div><p className="mt-2 text-sm text-slate-400">Historico total de consumo.</p></div>
+        <div><p className="text-sm text-slate-300">Plano</p><div className="mt-3"><StatusBadge tone={community ? "good" : "default"}>{community ? "Beneficio da comunidade" : "Preco publico"}</StatusBadge></div><p className="mt-4 text-sm leading-6 text-slate-400">{community ? "Membros da comunidade veem preco reduzido nos pacotes." : "Entre na comunidade para liberar preco especial."}</p></div>
       </Card>
-      <div className="grid gap-4 md:grid-cols-3">{[
-        ["Publico", 100, "Ideal para testar ensaios avulsos."],
-        ["Comunidade", 300, "Creditos com condicoes melhores para alunos."],
-        ["Pro", 1000, "Maior volume para uso profissional."]
-      ].map(([plan, pack, text]) => <Card key={plan as string} className="hover:border-cyan/40"><StatusBadge tone={plan === "Comunidade" ? "good" : "default"}>{plan as string}</StatusBadge><h2 className="mt-4 text-3xl font-semibold">{pack as number}</h2><p className="mt-1 text-sm text-slate-400">creditos</p><p className="mt-3 min-h-10 text-sm leading-5 text-slate-400">{text as string}</p><Button className="mt-5 w-full" disabled>Solicitar creditos</Button><p className="mt-3 text-xs text-gold">Em breve</p></Card>)}</div>
+      {state.credits.balance < state.generationConfig.creditsPerImage ? <div className="mb-6 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Voce nao tem creditos suficientes para gerar agora. Escolha um pacote para continuar.</div> : null}
+      <div className="grid gap-4 md:grid-cols-3">{packages.map((pack) => <Card key={pack.name} className={`${pack.highlight ? "border-gold/40 bg-gold/10" : "hover:border-cyan/40"}`}><div className="flex items-center justify-between gap-3"><StatusBadge tone={pack.highlight ? "warn" : "default"}>{pack.name}</StatusBadge>{community ? <StatusBadge tone="good">comunidade</StatusBadge> : null}</div><h2 className="mt-4 text-3xl font-semibold">{pack.credits}</h2><p className="mt-1 text-sm text-slate-400">creditos</p><div className="mt-4 text-sm"><p className="text-slate-400">Preco publico: {money(pack.publicPrice)}</p><p className="mt-1 text-cyan">Membro: {money(pack.memberPrice)}</p></div><p className="mt-3 min-h-10 text-sm leading-5 text-slate-400">{pack.text}</p><Button className="mt-5 w-full" disabled>Comprar creditos</Button><p className="mt-3 text-xs text-gold">Checkout em breve</p></Card>)}</div>
       <Card className="mt-6"><h2 className="text-lg font-semibold">Historico de transacoes</h2><div className="mt-4 grid gap-2">{state.creditTransactions.length === 0 ? <EmptyState title="Nenhuma transacao ainda." text="Quando creditos forem usados ou adicionados, o historico aparece aqui." /> : state.creditTransactions.map((tx) => <div key={tx.id} className="flex justify-between rounded-lg border border-line bg-ink p-3 text-sm"><span>{tx.description}</span><span className={tx.amount < 0 ? "text-red-200" : "text-cyan"}>{tx.amount}</span></div>)}</div></Card>
+    </>
+  );
+}
+
+export function TemplatesPage() {
+  const { state, loadError } = useDemoState();
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  if (loadError) return <LoadErrorState message={loadError} />;
+  if (!state) return <LoadingState />;
+  const categoriesForTemplates = Array.from(new Set(templates.map((template) => template.category)));
+  const visibleTemplates = templates.filter((template) => categoryFilter === "all" || template.category === categoryFilter);
+  return (
+    <>
+      <PageTitle title="Templates" text="Escolha um ponto de partida para vender ensaios mais rapido, sempre preservando a identidade da cliente." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Novo ensaio</Button>} />
+      <Card className="mb-6">
+        <div className="flex gap-2 overflow-x-auto">
+          <Button variant={categoryFilter === "all" ? "primary" : "ghost"} onClick={() => setCategoryFilter("all")}>Todos</Button>
+          {categoriesForTemplates.map((category) => <Button key={category} variant={categoryFilter === category ? "primary" : "ghost"} onClick={() => setCategoryFilter(category)}>{templateCategoryForShoot(category)}</Button>)}
+        </div>
+      </Card>
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {visibleTemplates.map((template) => (
+          <Card key={template.id} className="overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50">
+            <img src={template.image} alt={template.name} className="aspect-[4/3] w-full object-cover" />
+            <div className="p-5">
+              <div className="flex flex-wrap gap-2"><StatusBadge tone={template.popular ? "good" : "default"}>{templateCategoryForShoot(template.category)}</StatusBadge><StatusBadge tone="warn">{template.credits} creditos</StatusBadge><StatusBadge>{template.subtype}</StatusBadge></div>
+              <h2 className="mt-4 text-lg font-semibold">{template.name}</h2>
+              <p className="mt-2 min-h-12 text-sm leading-6 text-slate-400">{template.description}</p>
+              <Button href={`/app/shoots/new?template=${template.id}`} className="mt-5 w-full">Usar template</Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function ResultsPage() {
+  const { state, loadError } = useDemoState();
+  if (loadError) return <LoadErrorState message={loadError} />;
+  if (!state) return <LoadingState />;
+  const results = calculateResults(state);
+  return (
+    <>
+      <PageTitle title="Resultados" text="Lucrômetro simples para acompanhar volume, receita informada e margem estimada." />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Ensaios gerados" value={results.generatedShoots.length} Icon={Camera} tone="cyan" />
+        <MetricCard label="Creditos usados" value={results.creditsUsed} Icon={WalletCards} tone="gold" />
+        <MetricCard label="Clientes atendidos" value={results.activeClients.length} Icon={Users} tone="violet" />
+        <MetricCard label="Ticket medio" value={money(results.averageTicket)} Icon={BarChart3} tone="lime" />
+        <MetricCard label="Valor vendido" value={money(results.revenue)} Icon={CheckCircle2} tone="cyan" />
+        <MetricCard label="Custo estimado" value={money(results.estimatedCost)} Icon={Sparkles} tone="gold" />
+        <MetricCard label="Lucro estimado" value={money(results.profit)} Icon={BarChart3} tone="lime" />
+        <MetricCard label="Ranking futuro" value="Em breve" Icon={ShieldCheck} tone="violet" />
+      </div>
+      <Card className="mt-6">
+        <h2 className="text-lg font-semibold">Base para ranking futuro</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">A tela ja consolida volume, creditos, receita e lucro. O ranking pode entrar depois usando esses mesmos indicadores por periodo, turma ou comunidade.</p>
+      </Card>
+    </>
+  );
+}
+
+export function HistoryPage() {
+  const { state, loadError } = useDemoState();
+  if (loadError) return <LoadErrorState message={loadError} />;
+  if (!state) return <LoadingState />;
+  return (
+    <>
+      <PageTitle title="Historico" text="Acompanhe tentativas de geracao, sucessos, erros e creditos cobrados." />
+      <Card className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <thead className="text-slate-400"><tr><th className="p-3">Data</th><th className="p-3">Ensaio</th><th className="p-3">Provider</th><th className="p-3">Status</th><th className="p-3">Creditos</th><th className="p-3">Detalhe</th></tr></thead>
+          <tbody>{state.generationLogs.length === 0 ? <tr><td className="p-4 text-slate-400" colSpan={6}>Nenhuma geracao registrada ainda.</td></tr> : state.generationLogs.map((log) => {
+            const shoot = state.shoots.find((item) => item.id === log.shoot_id);
+            return <tr key={log.id} className="border-t border-line"><td className="p-3">{formatShootDate(log.created_at)}</td><td className="p-3">{shoot?.title ?? "Ensaio removido"}</td><td className="p-3">{log.provider}</td><td className="p-3"><StatusBadge tone={log.status === "success" ? "good" : log.status === "failed" ? "bad" : "warn"}>{log.status === "success" ? "Sucesso" : log.status === "failed" ? "Erro" : "Pendente"}</StatusBadge></td><td className="p-3">{log.credits_charged}</td><td className="p-3 text-slate-400">{log.error_message || `${log.model} - ${money(log.cost_estimate)}`}</td></tr>;
+          })}</tbody>
+        </table>
+      </Card>
     </>
   );
 }

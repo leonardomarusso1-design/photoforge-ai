@@ -19,7 +19,7 @@ exception when duplicate_object then null;
 end $$;
 
 do $$ begin
-  create type public.shoot_status as enum ('draft', 'ready', 'generating', 'completed', 'failed', 'delivered', 'archived');
+  create type public.shoot_status as enum ('draft', 'waiting_photos', 'ready', 'generating', 'completed', 'review', 'approved', 'failed', 'delivered', 'archived');
 exception when duplicate_object then null;
 end $$;
 
@@ -105,6 +105,13 @@ create table if not exists public.shoots (
   quantity int not null default 4 check (quantity in (1, 2, 4, 8, 16)),
   consent_confirmed boolean not null default false,
   consent_confirmed_at timestamptz,
+  consent_internal_use boolean not null default false,
+  consent_whatsapp_example boolean not null default false,
+  consent_portfolio boolean not null default false,
+  consent_ads boolean not null default false,
+  consent_no_public_use boolean not null default false,
+  recreate_reference_mode boolean not null default false,
+  recreate_options jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
@@ -150,6 +157,8 @@ create table if not exists public.generated_images (
   seed bigint,
   cost_estimate numeric(12,4) not null default 0,
   is_favorite boolean not null default false,
+  portfolio_authorized boolean not null default false,
+  delivered_at timestamptz,
   created_at timestamptz not null default now(),
   deleted_at timestamptz
 );
