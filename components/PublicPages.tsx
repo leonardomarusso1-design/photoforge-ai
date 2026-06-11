@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Card, Field, inputClass, Logo } from "@/components/ui";
 import { translateAuthError } from "@/lib/auth/messages";
+import { activateDemoMode, demoEmail, demoPassword } from "@/lib/demoMode";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
@@ -27,6 +28,14 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
     setMessage("");
 
     if (mode === "login") {
+      if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && email.toLowerCase() === demoEmail && password === demoPassword) {
+        activateDemoMode();
+        setLoading(false);
+        router.replace("/app/dashboard");
+        router.refresh();
+        return;
+      }
+
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       setLoading(false);
       if (signInError) {
@@ -131,6 +140,11 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
         <Logo />
         <h1 className="mt-8 text-2xl font-semibold">{title}</h1>
         <p className="mt-2 text-sm leading-6 text-slate-400">Autenticacao real via Supabase Auth. O profile e criado automaticamente pelo trigger do banco.</p>
+        {mode === "login" && process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? (
+          <div className="mt-4 rounded-lg border border-gold/30 bg-gold/10 p-3 text-sm leading-6 text-gold">
+            Login demo liberado: demo@photoforge.ai / photoforge123. Este acesso usa dados simulados e nao altera dados reais.
+          </div>
+        ) : null}
         <form onSubmit={submit} className="mt-6 grid gap-4">
           {mode === "register" ? <Field label="Nome"><input className={inputClass} value={name} onChange={(event) => setName(event.target.value)} placeholder="Seu nome" required /></Field> : null}
           <Field label="E-mail"><input className={inputClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="voce@email.com" required /></Field>
