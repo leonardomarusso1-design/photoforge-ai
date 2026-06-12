@@ -10,7 +10,7 @@ import { buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremium
 import { auditReferencePhoto, summarizePhotoQuality } from "@/lib/ai/photoQuality";
 import { Button, Card, EmptyState, Field, inputClass, MetricCard, StatusBadge } from "@/components/ui";
 import { ClientAvatar, EditorialImagePlaceholder, EmptyGalleryState, MiniGalleryActions, RecentShootPreview, UploadKindForType, UploadVisualCard } from "@/components/visual";
-import { demoUserId, isDemoMode } from "@/lib/demoMode";
+import { demoUserId, isDemoMode, withDemoParam } from "@/lib/demoMode";
 import { loadState as loadDemoState, saveState as saveDemoState, uid } from "@/lib/demoStore";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentAuthUser, getCurrentUserId } from "@/lib/supabase/currentUser";
@@ -451,7 +451,7 @@ export function DashboardPage() {
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
           {dashboardTemplates.map((template) => (
-            <Link key={template.id} href={`/app/shoots/new?template=${template.id}`} className="overflow-hidden rounded-lg border border-line bg-ink/70 transition hover:-translate-y-0.5 hover:border-cyan/50">
+            <Link key={template.id} href={withDemoParam(`/app/shoots/new?template=${template.id}`)} className="overflow-hidden rounded-lg border border-line bg-ink/70 transition hover:-translate-y-0.5 hover:border-cyan/50">
               <img src={template.image} alt={template.name} className="aspect-[4/3] w-full object-cover" />
               <div className="p-3"><p className="font-semibold">{template.name}</p><p className="mt-1 text-xs text-slate-400">{template.description}</p></div>
             </Link>
@@ -476,7 +476,7 @@ function ShootRow({ shoot, client, images = [], shoots = [] }: { shoot: Shoot; c
   const generatedCount = images.filter((image) => image.shoot_id === shoot.id && !image.deleted_at).length;
   const cover = getShootCoverImage(shoot, images, shoots.length ? shoots : [shoot]);
   return (
-    <Link href={`/app/shoots/${shoot.id}`} className="group grid gap-4 rounded-lg border border-line bg-panel/85 p-3 shadow-premium transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel sm:grid-cols-[112px_1fr_auto] sm:items-center">
+    <Link href={withDemoParam(`/app/shoots/${shoot.id}`)} className="group grid gap-4 rounded-lg border border-line bg-panel/85 p-3 shadow-premium transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel sm:grid-cols-[112px_1fr_auto] sm:items-center">
       <div className="relative min-h-32 overflow-hidden rounded-lg border border-white/10 bg-ink">
         {cover.coverUrl ? (
           <>
@@ -530,7 +530,7 @@ export function ClientsPage() {
           const latestClientShoot = clientShoots[0];
           const authorized = clientShoots.some((shoot) => shoot.consent_confirmed);
           return (
-          <Link href={`/app/clients/${client.id}`} key={client.id}>
+          <Link href={withDemoParam(`/app/clients/${client.id}`)} key={client.id}>
             <Card className="h-full transition hover:-translate-y-0.5 hover:border-cyan/60">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex gap-3">
@@ -598,7 +598,7 @@ export function ClientFormPage() {
         updated_at: new Date().toISOString()
       };
       commit({ ...state!, clients: [client, ...state!.clients] });
-      router.push(`/app/clients/${client.id}`);
+      router.push(withDemoParam(`/app/clients/${client.id}`));
       return;
     }
 
@@ -633,7 +633,7 @@ export function ClientFormPage() {
       return;
     }
 
-    router.push(`/app/clients/${client.id}`);
+    router.push(withDemoParam(`/app/clients/${client.id}`));
   }
   return (
     <>
@@ -761,7 +761,7 @@ export function ClientDetailPage({ id }: { id: string }) {
         generatedImages: state!.generatedImages.map((image) => image.client_id === currentClient.id ? { ...image, deleted_at: deletedAt } : image)
       });
       setDeleting(false);
-      router.push("/app/clients");
+      router.push(withDemoParam("/app/clients"));
       return;
     }
     const userId = await getCurrentUserId(supabase);
@@ -794,7 +794,7 @@ export function ClientDetailPage({ id }: { id: string }) {
       return;
     }
 
-    router.push("/app/clients");
+    router.push(withDemoParam("/app/clients"));
     await reload();
   }
 
@@ -1297,7 +1297,7 @@ export function ShootCreatePage() {
         shoots: state!.shoots.map((item) => item.id === updatedShoot.id ? updatedShoot : item),
         clients: state!.clients.map((item) => item.id === activeClient.id ? { ...item, total_revenue: Math.max(item.total_revenue, Number(form.sold_price) || item.total_revenue), status: "ready", updated_at: updatedAt } : item)
       });
-      router.push(`/app/shoots/${shoot.id}`);
+      router.push(withDemoParam(`/app/shoots/${shoot.id}`));
       return;
     }
     const userId = await getCurrentUserId(supabase);
@@ -1342,7 +1342,7 @@ export function ShootCreatePage() {
       .eq("id", activeClient.id)
       .eq("user_id", userId);
 
-    router.push(`/app/shoots/${shoot.id}`);
+    router.push(withDemoParam(`/app/shoots/${shoot.id}`));
   }
 
   async function generateDemoResult() {
@@ -2076,7 +2076,7 @@ export function ShootDetailPage({ id }: { id: string }) {
         generatedImages: state!.generatedImages.map((image) => image.shoot_id === currentShoot.id ? { ...image, deleted_at: deletedAt } : image)
       });
       setDeleting(false);
-      router.push("/app/shoots");
+      router.push(withDemoParam("/app/shoots"));
       return;
     }
     const userId = await getCurrentUserId(supabase);
@@ -2103,7 +2103,7 @@ export function ShootDetailPage({ id }: { id: string }) {
       return;
     }
 
-    router.push("/app/shoots");
+    router.push(withDemoParam("/app/shoots"));
     await reload();
   }
   return (

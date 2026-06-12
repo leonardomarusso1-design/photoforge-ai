@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isDemoRequestUrl } from "@/lib/demoMode";
 
 const protectedPrefixes = ["/app", "/admin"];
 const authPages = ["/login", "/register", "/forgot-password"];
@@ -35,7 +36,11 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isProtected = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const demoMode = isDemoRequestUrl(request.nextUrl) || (
+    process.env.NEXT_PUBLIC_DEMO_MODE === "true" &&
+    request.nextUrl.searchParams.get("demo") !== "false" &&
+    request.cookies.get("photoforge-demo")?.value === "1"
+  );
 
   if (!user && isProtected && !(demoMode && (pathname === "/app" || pathname.startsWith("/app/")))) {
     const redirectUrl = request.nextUrl.clone();

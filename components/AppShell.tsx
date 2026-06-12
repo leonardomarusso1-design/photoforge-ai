@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Camera, ChevronDown, GalleryHorizontal, Headphones, History, LayoutDashboard, LogOut, Plus, Settings, Shield, Sparkles, User, Users, WalletCards } from "lucide-react";
 import { Button, Logo, StatusBadge } from "@/components/ui";
-import { isDemoMode } from "@/lib/demoMode";
+import { isDemoMode, withDemoParam } from "@/lib/demoMode";
 import { loadState as loadDemoState } from "@/lib/demoStore";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
@@ -79,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;
             return (
-              <Link key={item.href} href={item.href} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${active ? "bg-white text-ink shadow-premium" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
+              <Link key={item.href} href={withDemoParam(item.href)} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${active ? "bg-white text-ink shadow-premium" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
                 <Icon className="h-4 w-4" />
                 {item.label}
               </Link>
@@ -115,9 +115,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Button variant="ghost" onClick={() => setMenuOpen((open) => !open)} title="Menu"><ChevronDown className="h-4 w-4" /></Button>
                 {menuOpen ? (
                   <div className="absolute right-0 mt-2 w-56 rounded-lg border border-line bg-panel p-2 shadow-premium">
-                    <Link className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white" href="/app/settings"><User className="h-4 w-4" /> Minha conta</Link>
-                    <Link className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white" href="/app/credits"><WalletCards className="h-4 w-4" /> Creditos</Link>
-                    <Link className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white" href="/app/support"><Headphones className="h-4 w-4" /> Suporte</Link>
+                    <Link className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white" href={withDemoParam("/app/settings")}><User className="h-4 w-4" /> Minha conta</Link>
+                    <Link className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white" href={withDemoParam("/app/credits")}><WalletCards className="h-4 w-4" /> Creditos</Link>
+                    <Link className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white" href={withDemoParam("/app/support")}><Headphones className="h-4 w-4" /> Suporte</Link>
                     <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-200 hover:bg-red-500/10" onClick={logout}><LogOut className="h-4 w-4" /> Sair</button>
                   </div>
                 ) : null}

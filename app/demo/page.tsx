@@ -2,17 +2,17 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { activateDemoMode } from "@/lib/demoMode";
+import { activateDemoMode, isDemoFeatureEnabled } from "@/lib/demoMode";
 import { Button, Card, Logo, StatusBadge } from "@/components/ui";
 
 export default function DemoEntryPage() {
   const router = useRouter();
-  const demoEnabled = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const demoEnabled = isDemoFeatureEnabled();
 
   useEffect(() => {
     if (!demoEnabled) return;
     activateDemoMode();
-    router.replace("/app/dashboard");
+    router.replace("/app/dashboard?demo=true");
   }, [demoEnabled, router]);
 
   return (
@@ -27,7 +27,7 @@ export default function DemoEntryPage() {
             : "Para liberar a revisao externa, configure NEXT_PUBLIC_DEMO_MODE=true no ambiente e faça um novo deploy."}
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          {demoEnabled ? <Button href="/app/dashboard">Entrar no demo</Button> : <Button href="/login">Entrar</Button>}
+          {demoEnabled ? <Button href="/app/dashboard?demo=true">Entrar no demo</Button> : <Button href="/login">Entrar</Button>}
           <Button href="/" variant="secondary">Voltar</Button>
         </div>
       </Card>

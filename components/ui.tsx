@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { clsx } from "clsx";
 import type { LucideIcon } from "lucide-react";
+import { withDemoParam } from "@/lib/demoMode";
 
 export function Logo() {
   return (
@@ -23,7 +24,7 @@ export function Button({ href, children, variant = "primary", className, disable
     variant === "danger" && "bg-red-500/15 text-red-200 hover:bg-red-500/25",
     className
   );
-  if (href) return <Link href={href} className={cn}>{children}</Link>;
+  if (href) return <Link href={withDemoParam(href)} className={cn}>{children}</Link>;
   return <button className={cn} disabled={disabled} {...props}>{children}</button>;
 }
 
