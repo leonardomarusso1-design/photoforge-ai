@@ -3,11 +3,7 @@ export const demoEmail = "demo@photoforge.ai";
 export const demoPassword = "photoforge123";
 
 export function isDemoMode() {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") return false;
-  if (typeof document !== "undefined") {
-    return document.cookie.includes("photoforge-demo=1") || window.localStorage.getItem("photoforge-demo") === "1";
-  }
-  return true;
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 }
 
 export function activateDemoMode() {

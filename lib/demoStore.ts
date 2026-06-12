@@ -4,6 +4,8 @@ import { defaultDemoState } from "@/lib/demoData";
 import type { Client, CreditTransaction, DemoState, GeneratedImage, GenerationLog, ReferencePhoto, Shoot, ShootStatus } from "@/lib/types";
 
 const key = "photoforge-ai-demo-state";
+const versionKey = "photoforge-ai-demo-version";
+const demoVersion = "2026-06-12-demo-v3";
 
 export function uid(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
@@ -11,6 +13,11 @@ export function uid(prefix: string) {
 
 export function loadState(): DemoState {
   if (typeof window === "undefined") return defaultDemoState;
+  if (window.localStorage.getItem(versionKey) !== demoVersion) {
+    saveState(defaultDemoState);
+    window.localStorage.setItem(versionKey, demoVersion);
+    return defaultDemoState;
+  }
   const raw = window.localStorage.getItem(key);
   if (!raw) return defaultDemoState;
   try {
@@ -22,6 +29,7 @@ export function loadState(): DemoState {
 
 export function saveState(state: DemoState) {
   window.localStorage.setItem(key, JSON.stringify(state));
+  window.localStorage.setItem(versionKey, demoVersion);
 }
 
 export function resetState() {

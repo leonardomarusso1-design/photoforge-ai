@@ -166,6 +166,7 @@ function PageTitle({ title, text, action }: { title: string; text: string; actio
 }
 
 function planLabel(plan?: string, role?: string) {
+  if (isDemoMode()) return "Demo";
   if (role === "admin") return "Admin";
   if (plan === "community" || plan === "Comunidade") return "Comunidade";
   if (plan === "pro" || plan === "Pro") return "Pro";
@@ -190,8 +191,13 @@ function quantitySelectOptions(state: DemoState) {
 
 const optionalReferenceAliases: Record<string, string[]> = {
   outfit_visual: ["outfit_visual", "outfit_reference"],
+  outfit_reference: ["outfit_reference", "outfit_visual"],
   pose_scenario: ["pose_scenario", "mood_reference"],
   important_detail: ["important_detail", "tattoo_arm", "tattoo_leg", "back", "hair_detail"],
+  tattoo_arm: ["tattoo_arm", "important_detail"],
+  tattoo_leg: ["tattoo_leg", "important_detail"],
+  back: ["back", "important_detail"],
+  hair_detail: ["hair_detail", "important_detail"],
   extra: ["extra"]
 };
 
@@ -519,7 +525,11 @@ export function ClientsPage() {
       </Card>
       {clients.length === 0 ? <EmptyState title={allClients.length === 0 ? "Voce ainda nao cadastrou nenhuma cliente." : "Nenhuma cliente encontrada."} text={allClients.length === 0 ? "Cadastre a primeira cliente para criar um ensaio com IA." : "Tente buscar por outro nome, WhatsApp, e-mail ou cidade."} action={<Button href="/app/clients/new">Cadastrar cliente</Button>} /> : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {clients.map((client) => (
+        {clients.map((client) => {
+          const clientShoots = state.shoots.filter((shoot) => shoot.client_id === client.id && !shoot.deleted_at);
+          const latestClientShoot = clientShoots[0];
+          const authorized = clientShoots.some((shoot) => shoot.consent_confirmed);
+          return (
           <Link href={`/app/clients/${client.id}`} key={client.id}>
             <Card className="h-full transition hover:-translate-y-0.5 hover:border-cyan/60">
               <div className="flex items-start justify-between gap-3">
@@ -535,13 +545,15 @@ export function ClientsPage() {
               <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
                 <div><p className="text-slate-500">Cidade</p><p>{client.city || "-"}</p></div>
                 <div><p className="text-slate-500">Receita</p><p>{money(client.total_revenue)}</p></div>
-                <div><p className="text-slate-500">Ensaios</p><p>{state.shoots.filter((shoot) => shoot.client_id === client.id && !shoot.deleted_at).length}</p></div>
+                <div><p className="text-slate-500">Ensaios</p><p>{clientShoots.length}</p></div>
+                <div><p className="text-slate-500">Autorizacao</p><p>{authorized ? "Registrada" : "Pendente"}</p></div>
+                <div><p className="text-slate-500">Ultimo ensaio</p><p>{latestClientShoot?.title ?? "-"}</p></div>
                 <div><p className="text-slate-500">Atividade</p><p>{new Date(client.updated_at || client.created_at).toLocaleDateString("pt-BR")}</p></div>
               </div>
-              <p className="mt-5 text-xs text-slate-500">Clique para ver ensaios, editar dados e abrir a galeria da cliente.</p>
+              <div className="mt-5"><Button variant="ghost">Ver detalhes</Button></div>
             </Card>
           </Link>
-        ))}
+        );})}
       </div>
     </>
   );
@@ -557,15 +569,6 @@ export function ClientFormPage() {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setErrorMessage("");
-    let userId = "";
-    try {
-      userId = await getCurrentUserId(supabase);
-    } catch (error) {
-      logSupabaseError("Supabase error", error);
-      setErrorMessage("Sessao invalida. Entre novamente para salvar a cliente.");
-      return;
-    }
-
     if (!isValidWhatsapp(form.whatsapp)) {
       setErrorMessage("Informe um WhatsApp valido com DDD.");
       return;
@@ -596,6 +599,15 @@ export function ClientFormPage() {
       };
       commit({ ...state!, clients: [client, ...state!.clients] });
       router.push(`/app/clients/${client.id}`);
+      return;
+    }
+
+    let userId = "";
+    try {
+      userId = await getCurrentUserId(supabase);
+    } catch (error) {
+      logSupabaseError("Supabase error", error);
+      setErrorMessage("Sessao invalida. Entre novamente para salvar a cliente.");
       return;
     }
 
@@ -888,11 +900,14 @@ export function ShootCreatePage() {
   const { state, commit, supabase, loadError } = useDemoState();
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState("");
+  const [clientForm, setClientForm] = useState({ name: "", whatsapp: "", age: "", notes: "" });
   const [form, setForm] = useState<Partial<Shoot>>({ title: "", category: "Aniversario", sold_price: 0, quantity: 4, consent_confirmed: false, provider: "mock" });
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [draftShoot, setDraftShoot] = useState<Shoot | null>(null);
   const [uploadedPhotos, setUploadedPhotos] = useState<Record<string, ReferencePhoto>>({});
   const [uploadPreviews, setUploadPreviews] = useState<Record<string, string>>({});
+  const [resultImages, setResultImages] = useState<GeneratedImage[]>([]);
+  const [generatingDemo, setGeneratingDemo] = useState(false);
   const [flowError, setFlowError] = useState("");
   useEffect(() => {
     const templateId = searchParams.get("template");
@@ -919,11 +934,64 @@ export function ShootCreatePage() {
   const selectedCreditCost = creditCostForQuantity(state, selectedQuantity);
   const ready = Boolean(client && form.title && form.category && readyPhotos && form.consent_confirmed && state.credits.balance >= selectedCreditCost);
 
-  async function ensureDraftShoot() {
-    if (!client) {
-      setFlowError("Selecione uma cliente antes de continuar.");
+  async function ensureClient() {
+    if (client) return client;
+    if (!clientForm.name.trim()) {
+      setFlowError("Informe o nome da cliente antes de continuar.");
       return null;
     }
+    if (!isValidWhatsapp(clientForm.whatsapp)) {
+      setFlowError("Informe um WhatsApp valido com DDD.");
+      return null;
+    }
+    if (clientForm.age && (Number.isNaN(Number(clientForm.age)) || Number(clientForm.age) < 0 || Number(clientForm.age) > 130)) {
+      setFlowError("Informe uma idade valida entre 0 e 130.");
+      return null;
+    }
+    const now = new Date().toISOString();
+    if (isDemoMode()) {
+      const nextClient: Client = {
+        id: uid("client"),
+        user_id: demoUserId,
+        name: clientForm.name.trim(),
+        whatsapp: clientForm.whatsapp.trim(),
+        age: Number(clientForm.age) || undefined,
+        notes: clientForm.notes || undefined,
+        status: "new",
+        total_revenue: 0,
+        created_at: now,
+        updated_at: now
+      };
+      commit({ ...state!, clients: [nextClient, ...state!.clients] });
+      setSelectedClient(nextClient.id);
+      return nextClient;
+    }
+    const userId = await getCurrentUserId(supabase);
+    const { data, error } = await supabase
+      .from("clients")
+      .insert({
+        user_id: userId,
+        name: clientForm.name.trim(),
+        whatsapp: clientForm.whatsapp.trim(),
+        age: Number(clientForm.age) || null,
+        notes: clientForm.notes || null,
+        status: "new",
+        total_revenue: 0
+      })
+      .select("*")
+      .single();
+    if (error || !data) {
+      logSupabaseError("Supabase error", error);
+      setFlowError(process.env.NODE_ENV === "development" && error?.message ? `Erro do Supabase: ${error.message}` : "Nao foi possivel criar a cliente.");
+      return null;
+    }
+    setSelectedClient(data.id);
+    return data as Client;
+  }
+
+  async function ensureDraftShoot() {
+    const activeClient = await ensureClient();
+    if (!activeClient) return null;
     if (!form.title) {
       setFlowError("Informe o nome do ensaio antes de continuar.");
       return null;
@@ -935,7 +1003,7 @@ export function ShootCreatePage() {
         ...(draftShoot ?? {}),
         id: draftShoot?.id ?? uid("shoot"),
         user_id: demoUserId,
-        client_id: client.id,
+        client_id: activeClient.id,
         title: form.title || "Novo ensaio",
         category: form.category || "Personalizado",
         status: "draft",
@@ -974,7 +1042,7 @@ export function ShootCreatePage() {
     const userId = await getCurrentUserId(supabase);
     const payload = {
       user_id: userId,
-      client_id: client.id,
+      client_id: activeClient.id,
       title: form.title || "Novo ensaio",
       category: form.category || "Personalizado",
       status: "draft",
@@ -1217,7 +1285,8 @@ export function ShootCreatePage() {
   }
 
   async function saveDraft(target: "draft" | "generate") {
-    if (!client) return;
+    const activeClient = await ensureClient();
+    if (!activeClient) return;
     const shoot = await ensureDraftShoot();
     if (!shoot) return;
     if (isDemoMode()) {
@@ -1226,7 +1295,7 @@ export function ShootCreatePage() {
       commit({
         ...state!,
         shoots: state!.shoots.map((item) => item.id === updatedShoot.id ? updatedShoot : item),
-        clients: state!.clients.map((item) => item.id === client.id ? { ...item, total_revenue: Math.max(item.total_revenue, Number(form.sold_price) || item.total_revenue), status: "ready", updated_at: updatedAt } : item)
+        clients: state!.clients.map((item) => item.id === activeClient.id ? { ...item, total_revenue: Math.max(item.total_revenue, Number(form.sold_price) || item.total_revenue), status: "ready", updated_at: updatedAt } : item)
       });
       router.push(`/app/shoots/${shoot.id}`);
       return;
@@ -1269,11 +1338,92 @@ export function ShootCreatePage() {
 
     await supabase
       .from("clients")
-      .update({ total_revenue: client.total_revenue + (Number(form.sold_price) || 0), status: "ready" })
-      .eq("id", client.id)
+      .update({ total_revenue: activeClient.total_revenue + (Number(form.sold_price) || 0), status: "ready" })
+      .eq("id", activeClient.id)
       .eq("user_id", userId);
 
     router.push(`/app/shoots/${shoot.id}`);
+  }
+
+  async function generateDemoResult() {
+    const currentState = state;
+    if (!currentState) return;
+    if (!isDemoMode()) {
+      await saveDraft("generate");
+      return;
+    }
+    if (!ready) {
+      setFlowError(currentState.credits.balance < selectedCreditCost ? "Creditos insuficientes." : "Complete cliente, fotos obrigatorias e consentimento antes de gerar.");
+      return;
+    }
+    setGeneratingDemo(true);
+    setFlowError("");
+    const shoot = await ensureDraftShoot();
+    if (!shoot || !client) {
+      setGeneratingDemo(false);
+      return;
+    }
+    window.setTimeout(() => {
+      const now = new Date().toISOString();
+      const prompt = buildPremiumPrompt({ ...shoot, status: "completed", generated_prompt: "" }, client, currentRefs);
+      const images = Array.from({ length: selectedQuantity }, (_, index) => ({
+        id: uid("image"),
+        user_id: demoUserId,
+        client_id: client.id,
+        shoot_id: shoot.id,
+        file_url: `/api/placeholder?seed=${shoot.id}-${index}`,
+        prompt_used: prompt,
+        provider: currentState.generationConfig.effectiveProvider,
+        model: "demo-placeholder",
+        status: "completed" as const,
+        width: 1024,
+        height: 1365,
+        seed: Date.now() + index,
+        cost_estimate: 1,
+        is_favorite: index === 0,
+        portfolio_authorized: Boolean(form.consent_portfolio),
+        created_at: now
+      }));
+      const completedShoot = {
+        ...shoot,
+        status: "completed" as const,
+        credits_used: selectedCreditCost,
+        generated_prompt: prompt,
+        negative_prompt: defaultNegativePrompt,
+        updated_at: now
+      };
+      const nextState = {
+        ...currentState,
+        shoots: currentState.shoots.map((item) => item.id === shoot.id ? completedShoot : item),
+        generatedImages: [...images, ...currentState.generatedImages],
+        credits: { ...currentState.credits, balance: currentState.credits.balance - selectedCreditCost, total_used: currentState.credits.total_used + selectedCreditCost, updated_at: now },
+        creditTransactions: [{
+          id: uid("tx"),
+          user_id: demoUserId,
+          type: "usage" as const,
+          amount: -selectedCreditCost,
+          description: `Geracao demo do ensaio ${shoot.title}`,
+          related_shoot_id: shoot.id,
+          created_at: now
+        }, ...currentState.creditTransactions],
+        generationLogs: [{
+          id: uid("log"),
+          user_id: demoUserId,
+          shoot_id: shoot.id,
+          provider: currentState.generationConfig.effectiveProvider,
+          model: "demo-placeholder",
+          request_payload: { quantity: selectedQuantity, demo: true },
+          response_payload: { images: selectedQuantity },
+          status: "success" as const,
+          credits_charged: selectedCreditCost,
+          cost_estimate: selectedCreditCost,
+          created_at: now
+        }, ...currentState.generationLogs]
+      };
+      commit(nextState);
+      setResultImages(images);
+      setGeneratingDemo(false);
+    }, 900);
   }
 
   async function nextStep() {
@@ -1286,42 +1436,56 @@ export function ShootCreatePage() {
 
   return (
     <>
-      <PageTitle title="Criar ensaio" text="Fluxo guiado para cliente, fotos, template, referencia, ajustes, revisao e geracao." />
-      <div className="mb-5 grid gap-2 md:grid-cols-7">{["Cliente", "Fotos", "Template", "Referencia", "Ajustes", "Revisao", "Gerar"].map((label, index) => {
+      <PageTitle title="Criar ensaio" text="Fluxo guiado para cliente, fotos, template, ajustes, consentimento, revisao e resultado." />
+      <div className="mb-5 grid gap-2 md:grid-cols-7">{["Cliente", "Fotos", "Template", "Ajustes", "Consentimento", "Revisao", "Resultado"].map((label, index) => {
         const current = step === index + 1;
         const done = step > index + 1;
         return <button key={label} onClick={() => setStep(index + 1)} className={`rounded-lg border px-3 py-3 text-left text-sm transition ${current ? "border-cyan bg-cyan/10 text-cyan" : done ? "border-cyan/30 bg-panel text-white" : "border-line bg-panel text-slate-400 hover:border-white/20"}`}><span className="mr-2 inline-grid h-6 w-6 place-items-center rounded-full bg-white/10 text-xs">{done ? "OK" : index + 1}</span>{label}</button>;
       })}</div>
       <Card>
         {flowError ? <div className="mb-4 rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{flowError}</div> : null}
-        {step === 1 && <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Nome do ensaio"><input className={inputClass} value={form.title ?? ""} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
-          <Field label="Cliente vinculada"><select className={inputClass} value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}><option value="">Selecione</option>{state.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-          <Field label="Categoria"><select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></Field>
-          <Field label="Valor vendido"><input className={inputClass} type="number" value={form.sold_price ?? 0} onChange={(e) => setForm({ ...form, sold_price: Number(e.target.value) })} /></Field>
-          <Field label="Observacoes internas"><textarea className={inputClass} rows={3} value={form.free_notes ?? ""} onChange={(e) => setForm({ ...form, free_notes: e.target.value })} /></Field>
+        {step === 1 && <div className="grid gap-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Cliente existente"><select className={inputClass} value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}><option value="">Cadastrar rapidamente abaixo</option>{state.clients.filter((item) => !item.deleted_at).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            <Field label="Nome do ensaio"><input className={inputClass} placeholder="Ex.: Aniversario Luxo da Marina" value={form.title ?? ""} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
+          </div>
+          {!selectedClient ? <div className="rounded-lg border border-line bg-ink/60 p-4">
+            <h2 className="text-lg font-semibold">Dados da cliente</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Field label="Nome da cliente"><input className={inputClass} value={clientForm.name} onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })} /></Field>
+              <Field label="WhatsApp"><input className={inputClass} type="tel" inputMode="tel" placeholder="+55 11 90000-0000" value={clientForm.whatsapp} onChange={(e) => setClientForm({ ...clientForm, whatsapp: e.target.value })} /></Field>
+              <Field label="Idade"><input className={inputClass} type="number" min={0} max={130} inputMode="numeric" value={clientForm.age} onChange={(e) => setClientForm({ ...clientForm, age: e.target.value.replace(/\D/g, "") })} /></Field>
+              <Field label="Observacoes"><textarea className={inputClass} rows={3} value={clientForm.notes} onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })} /></Field>
+            </div>
+          </div> : null}
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Categoria"><select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></Field>
+            <Field label="Valor vendido"><input className={inputClass} type="number" value={form.sold_price ?? 0} onChange={(e) => setForm({ ...form, sold_price: Number(e.target.value) })} /></Field>
+          </div>
         </div>}
         {step === 2 && <PhotoStep refs={currentRefs} previews={uploadPreviews} onUpload={uploadReferencePhoto} onRemove={removeReferencePhoto} />}
         {step === 3 && <TemplatePickStep selectedTemplate={selectedTemplate} onSelect={(templateId) => {
           const template = templates.find((item) => item.id === templateId);
           if (!template) return;
           setSelectedTemplate(template.id);
-          setForm({ ...form, category: template.category, title: form.title || template.name, photo_style: "foto realista com celular moderno, estilo iPhone 15", free_notes: [form.free_notes, template.description].filter(Boolean).join(" ") });
+          setForm({
+            ...form,
+            category: template.category,
+            title: form.title || template.name,
+            photo_style: "foto realista com celular moderno, estilo iPhone 15",
+            free_notes: [form.free_notes, template.description].filter(Boolean).join(" "),
+            recreate_reference_mode: template.name === "Recriar Referencia" ? true : form.recreate_reference_mode,
+            recreate_options: template.name === "Recriar Referencia" ? { same_pose: true, similar_outfit: true, same_scene: true, same_lighting: true, keep_real_client: true, keep_real_body: true, keep_real_hair: true, keep_real_age: true, iphone_photo: true } : form.recreate_options
+          });
         }} />}
-        {step === 4 && <div>
-          <h2 className="text-lg font-semibold">Referencias opcionais</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Use referencias para guiar roupa, pose, cenario ou detalhes importantes. A identidade deve vir das fotos principais.</p>
-          <div className="mt-4 rounded-lg border border-line bg-ink/60 p-4 text-sm leading-6 text-slate-300">As fotos da cliente definem a identidade. A referencia serve apenas para pose, roupa, cenario e composicao.</div>
-          <RecreateReferenceMode form={form} setForm={setForm} />
-          <div className="mt-4 grid gap-3 md:grid-cols-2">{optionalPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(currentRefs, photo.type)} preview={uploadPreviews[photo.type]} onUpload={uploadReferencePhoto} onRemove={removeReferencePhoto} />)}</div>
-        </div>}
-        {step === 5 && <PersonalizationFields form={form} setForm={setForm} />}
+        {step === 4 && <div className="grid gap-5"><PersonalizationFields form={form} setForm={setForm} /><div className="rounded-lg border border-line bg-ink/60 p-4"><h2 className="text-lg font-semibold">Imagem de referencia opcional</h2><p className="mt-2 text-sm leading-6 text-slate-400">As fotos da cliente definem a identidade. A referencia serve apenas para pose, roupa, cenario e composicao.</p><RecreateReferenceMode form={form} setForm={setForm} /><div className="mt-4 grid gap-3 md:grid-cols-2">{optionalPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(currentRefs, photo.type)} preview={uploadPreviews[photo.type]} onUpload={uploadReferencePhoto} onRemove={removeReferencePhoto} />)}</div></div></div>}
+        {step === 5 && <ConsentStep form={form} setForm={setForm} />}
         {step === 6 && <ReviewStep form={form} client={client} refs={currentRefs} />}
-        {step === 7 && <GenerationStep state={state} form={form} setForm={setForm} client={client} readyPhotos={readyPhotos} ready={ready} />}
+        {step === 7 && <GenerationStep state={state} form={form} setForm={setForm} client={client} readyPhotos={readyPhotos} ready={ready} resultImages={resultImages} generating={generatingDemo} onGenerate={generateDemoResult} />}
         <div className="mt-6 flex flex-wrap gap-3">
           {step > 1 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Voltar</Button> : null}
-          {step < 7 ? <Button onClick={nextStep}>Proximo</Button> : <Button disabled={!ready} onClick={() => saveDraft("generate")}>Salvar e preparar geracao</Button>}
-          <Button variant="ghost" onClick={() => saveDraft("draft")} disabled={!client || !form.title}>Salvar rascunho</Button>
+          {step < 7 ? <Button onClick={nextStep}>Proximo</Button> : <Button disabled={!ready || generatingDemo} onClick={generateDemoResult}>{generatingDemo ? "Gerando..." : isDemoMode() ? "Gerar foto demo" : "Salvar e preparar geracao"}</Button>}
+          <Button variant="ghost" onClick={() => saveDraft("draft")} disabled={(!client && !clientForm.name) || !form.title}>Salvar rascunho</Button>
           <Button href="/app/shoots" variant="ghost">Cancelar</Button>
         </div>
       </Card>
@@ -1330,7 +1494,7 @@ export function ShootCreatePage() {
 }
 
 function TemplatePickStep({ selectedTemplate, onSelect }: { selectedTemplate: string; onSelect: (templateId: string) => void }) {
-  const grouped = ["Aniversario", "Casual", "Profissional/empresa", "Casal", "Praia", "Gestante", "Infantil/bebe", "Fitness"];
+  const grouped = ["Aniversario", "Casual", "Profissional/empresa", "Casal", "Praia", "Gestante", "Infantil/bebe", "Fitness", "Personalizado"];
   return (
     <div className="grid gap-5">
       <div>
@@ -1434,8 +1598,45 @@ function ReviewStep({ form, client, refs }: { form: Partial<Shoot>; client?: Cli
       </Card>
       <Card className="bg-ink/60">
         <h2 className="text-lg font-semibold">Prompt montado</h2>
+        <Button variant="secondary" className="mt-3" onClick={() => navigator.clipboard?.writeText(prompt)}><Copy className="h-4 w-4" /> Copiar prompt</Button>
         <pre className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-ink p-4 text-xs leading-5 text-slate-300">{prompt}</pre>
       </Card>
+    </div>
+  );
+}
+
+function ConsentStep({ form, setForm }: { form: Partial<Shoot>; setForm: (next: Partial<Shoot>) => void }) {
+  const consentFields = [
+    ["consent_confirmed", "Cliente autorizou gerar imagens"],
+    ["consent_internal_use", "Cliente autorizou uso interno"],
+    ["consent_whatsapp_example", "Cliente autorizou usar como exemplo no WhatsApp"],
+    ["consent_portfolio", "Cliente autorizou usar no portfolio"],
+    ["consent_ads", "Cliente autorizou usar em anuncio"],
+    ["consent_no_public_use", "Cliente nao autorizou divulgacao"]
+  ] as const;
+  return (
+    <div className="grid gap-5">
+      <div>
+        <h2 className="text-lg font-semibold">Consentimento da cliente</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">Registre o que a cliente autorizou antes de gerar ou divulgar qualquer imagem.</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {consentFields.map(([key, label]) => (
+          <label key={key} className="flex items-start gap-3 rounded-lg border border-line bg-ink/70 p-4 text-sm text-slate-300">
+            <input type="checkbox" className="mt-1" checked={Boolean(form[key])} onChange={(event) => {
+              const next = { ...form, [key]: event.target.checked };
+              if (key === "consent_no_public_use" && event.target.checked) {
+                next.consent_whatsapp_example = false;
+                next.consent_portfolio = false;
+                next.consent_ads = false;
+              }
+              setForm(next);
+            }} />
+            <span>{label}</span>
+          </label>
+        ))}
+      </div>
+      <div className="rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-gold">A primeira autorizacao e obrigatoria para liberar a geracao. As demais controlam uso interno, portfolio e anuncios.</div>
     </div>
   );
 }
@@ -1531,7 +1732,7 @@ function PersonalizationFields({ form, setForm }: { form: Partial<Shoot>; setFor
   );
 }
 
-function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { state: DemoState; form: Partial<Shoot>; setForm: (next: Partial<Shoot>) => void; client?: Client; readyPhotos: boolean; ready: boolean }) {
+function GenerationStep({ state, form, setForm, client, readyPhotos, ready, resultImages = [], generating = false, onGenerate }: { state: DemoState; form: Partial<Shoot>; setForm: (next: Partial<Shoot>) => void; client?: Client; readyPhotos: boolean; ready: boolean; resultImages?: GeneratedImage[]; generating?: boolean; onGenerate?: () => void }) {
   const options = quantitySelectOptions(state);
   const quantity = (form.quantity as GenerationQuantity) || options[0];
   const creditsNeeded = creditCostForQuantity(state, quantity);
@@ -1564,25 +1765,12 @@ function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { 
           </div>
         </Card>
         <Field label="Quantidade de imagens"><select className={inputClass} value={quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) as GenerationQuantity })}>{options.map((option) => <option key={option} value={option}>Gerar {option} {option === 1 ? "imagem" : "imagens"}</option>)}</select></Field>
-        <div className="rounded-lg border border-line bg-ink p-4">
-          <h3 className="font-semibold">Consentimento e autorizacoes</h3>
-          <div className="mt-3 grid gap-2">
-            {consentFields.map(([key, label]) => (
-              <label key={key} className="flex items-start gap-3 rounded-lg border border-line bg-panel/70 p-3 text-sm text-slate-300">
-                <input type="checkbox" className="mt-1" checked={Boolean(form[key])} onChange={(event) => {
-                  const next = { ...form, [key]: event.target.checked };
-                  if (key === "consent_no_public_use" && event.target.checked) {
-                    next.consent_whatsapp_example = false;
-                    next.consent_portfolio = false;
-                    next.consent_ads = false;
-                  }
-                  setForm(next);
-                }} />
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
+        <Card className="bg-ink/60">
+          <h3 className="font-semibold">Resultado</h3>
+          {generating ? <div className="mt-4 rounded-lg border border-cyan/30 bg-cyan/10 p-5 text-sm text-cyan">Gerando preview demo...</div> : null}
+          {resultImages.length > 0 ? <div className="mt-4 grid gap-3 sm:grid-cols-2">{resultImages.slice(0, 4).map((image) => <div key={image.id} className="overflow-hidden rounded-lg border border-line bg-panel"><img src={image.file_url} alt="Resultado demo" className="aspect-[3/4] w-full object-cover" /><div className="flex flex-wrap gap-2 p-3"><Button variant="ghost" onClick={() => window.open(image.file_url, "_blank")}><Download className="h-4 w-4" /> Baixar</Button><Button variant="ghost" href="/app/gallery">Salvar na galeria</Button></div></div>)}</div> : <div className="mt-4"><EditorialImagePlaceholder kind="portrait" label="Preview" className="aspect-[16/10]" /><p className="mt-3 text-sm text-slate-400">No modo demo, a geracao usa uma imagem placeholder se Gemini real nao estiver disponivel.</p></div>}
+          {resultImages.length > 0 ? <div className="mt-4 flex flex-wrap gap-2"><Button href="/app/gallery" variant="secondary">Abrir galeria</Button><Button variant="secondary" onClick={onGenerate}>Refazer</Button></div> : null}
+        </Card>
       </div>
       <div className="rounded-lg border border-line bg-ink p-4">
         <h3 className="font-semibold">Checklist de geracao</h3>
@@ -1590,6 +1778,7 @@ function GenerationStep({ state, form, setForm, client, readyPhotos, ready }: { 
         <p className="mt-4 text-xs text-slate-500">O botao so libera quando tudo estiver correto. Custo: {creditsNeeded} creditos.</p>
         {state.credits.balance < creditsNeeded ? <Button href="/app/credits" className="mt-4 w-full"><WalletCards className="h-4 w-4" /> Comprar creditos</Button> : null}
         <StatusBadge tone={ready ? "good" : "warn"}>{ready ? "Pronto para gerar" : "Bloqueado"}</StatusBadge>
+        {ready ? <Button className="mt-4 w-full" onClick={onGenerate} disabled={generating}>{generating ? "Gerando..." : "Gerar foto"}</Button> : null}
       </div>
     </div>
   );
@@ -2064,24 +2253,34 @@ function GalleryGrid({ images, title, showProvider = false, clients = [], shoots
 
 export function CreditsPage() {
   const { state, loadError } = useDemoState();
+  const [demoMessage, setDemoMessage] = useState("");
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
   const community = isCommunityPlan(state.profile.plan_type);
   const packages = [
-    { name: "Starter", credits: 100, publicPrice: 97, memberPrice: 67, text: "Para testar ofertas e entregar os primeiros ensaios." },
-    { name: "Mais vendido", credits: 300, publicPrice: 247, memberPrice: 167, text: "Melhor equilibrio para alunos vendendo toda semana.", highlight: true },
-    { name: "Pro", credits: 1000, publicPrice: 697, memberPrice: 497, text: "Para operacao com volume e clientes recorrentes." }
+    { name: "Primeiro pacote", credits: 25, publicPrice: 37, memberPrice: 27, text: "Para testar ofertas e entregar os primeiros ensaios." },
+    { name: "Mais vendido", credits: 75, publicPrice: 97, memberPrice: 67, text: "Melhor equilibrio para alunos vendendo toda semana.", highlight: true },
+    { name: "Escala", credits: 150, publicPrice: 177, memberPrice: 127, text: "Para vender pacotes recorrentes com margem previsivel." },
+    { name: "Producao", credits: 300, publicPrice: 297, memberPrice: 197, text: "Para operacao com volume e clientes recorrentes.", community: true }
   ];
+  function buyCredits() {
+    if (isDemoMode()) {
+      setDemoMessage("Compra simulada no modo demo.");
+      return;
+    }
+    setDemoMessage("Checkout real ainda nao esta conectado.");
+  }
   return (
     <>
-      <PageTitle title="Creditos" text="Veja saldo, uso e pacotes. A compra ainda fica preparada para conectar ao checkout." action={<Button disabled>Comprar creditos</Button>} />
+      <PageTitle title="Creditos" text="Veja saldo, uso, historico e pacotes. No demo, a compra fica apenas simulada." action={<Button onClick={buyCredits}>Comprar creditos</Button>} />
+      {demoMessage ? <div className="mb-6 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">{demoMessage}</div> : null}
       <Card className="mb-6 grid gap-5 border-cyan/25 bg-cyan/10 md:grid-cols-3">
         <div><p className="text-sm text-slate-300">Seus creditos</p><div className="mt-2 text-5xl font-semibold">{state.credits.balance}</div><p className="mt-2 text-sm text-slate-400">Saldo disponivel para novas geracoes.</p></div>
         <div><p className="text-sm text-slate-300">Creditos usados</p><div className="mt-2 text-5xl font-semibold">{state.credits.total_used}</div><p className="mt-2 text-sm text-slate-400">Historico total de consumo.</p></div>
         <div><p className="text-sm text-slate-300">Plano</p><div className="mt-3"><StatusBadge tone={community ? "good" : "default"}>{community ? "Beneficio da comunidade" : "Preco publico"}</StatusBadge></div><p className="mt-4 text-sm leading-6 text-slate-400">{community ? "Membros da comunidade veem preco reduzido nos pacotes." : "Entre na comunidade para liberar preco especial."}</p></div>
       </Card>
       {state.credits.balance < state.generationConfig.creditsPerImage ? <div className="mb-6 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Voce nao tem creditos suficientes para gerar agora. Escolha um pacote para continuar.</div> : null}
-      <div className="grid gap-4 md:grid-cols-3">{packages.map((pack) => <Card key={pack.name} className={`${pack.highlight ? "border-gold/40 bg-gold/10" : "hover:border-cyan/40"}`}><div className="flex items-center justify-between gap-3"><StatusBadge tone={pack.highlight ? "warn" : "default"}>{pack.name}</StatusBadge>{community ? <StatusBadge tone="good">comunidade</StatusBadge> : null}</div><h2 className="mt-4 text-3xl font-semibold">{pack.credits}</h2><p className="mt-1 text-sm text-slate-400">creditos</p><div className="mt-4 text-sm"><p className="text-slate-400">Preco publico: {money(pack.publicPrice)}</p><p className="mt-1 text-cyan">Membro: {money(pack.memberPrice)}</p></div><p className="mt-3 min-h-10 text-sm leading-5 text-slate-400">{pack.text}</p><Button className="mt-5 w-full" disabled>Comprar creditos</Button><p className="mt-3 text-xs text-gold">Checkout em breve</p></Card>)}</div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{packages.map((pack) => <Card key={pack.name} className={`${pack.highlight ? "border-gold/40 bg-gold/10" : "hover:border-cyan/40"}`}><div className="flex flex-wrap items-center gap-2"><StatusBadge tone={pack.highlight ? "warn" : "default"}>{pack.name}</StatusBadge>{pack.highlight ? <StatusBadge tone="warn">melhor custo</StatusBadge> : null}{pack.community || community ? <StatusBadge tone="good">beneficio da comunidade</StatusBadge> : null}</div><h2 className="mt-4 text-3xl font-semibold">{pack.credits}</h2><p className="mt-1 text-sm text-slate-400">creditos</p><div className="mt-4 text-sm"><p className="text-slate-400">Preco publico: {money(pack.publicPrice)}</p><p className="mt-1 text-cyan">Membro: {money(pack.memberPrice)}</p></div><p className="mt-3 min-h-10 text-sm leading-5 text-slate-400">{pack.text}</p><Button className="mt-5 w-full" onClick={buyCredits}>Comprar</Button><p className="mt-3 text-xs text-gold">{isDemoMode() ? "Compra simulada no modo demo" : "Checkout em breve"}</p></Card>)}</div>
       <Card className="mt-6"><h2 className="text-lg font-semibold">Historico de transacoes</h2><div className="mt-4 grid gap-2">{state.creditTransactions.length === 0 ? <EmptyState title="Nenhuma transacao ainda." text="Quando creditos forem usados ou adicionados, o historico aparece aqui." /> : state.creditTransactions.map((tx) => <div key={tx.id} className="flex justify-between rounded-lg border border-line bg-ink p-3 text-sm"><span>{tx.description}</span><span className={tx.amount < 0 ? "text-red-200" : "text-cyan"}>{tx.amount}</span></div>)}</div></Card>
     </>
   );
@@ -2155,10 +2354,11 @@ export function HistoryPage() {
       <PageTitle title="Historico" text="Acompanhe tentativas de geracao, sucessos, erros e creditos cobrados." />
       <Card className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="text-slate-400"><tr><th className="p-3">Data</th><th className="p-3">Ensaio</th><th className="p-3">Provider</th><th className="p-3">Status</th><th className="p-3">Creditos</th><th className="p-3">Detalhe</th></tr></thead>
-          <tbody>{state.generationLogs.length === 0 ? <tr><td className="p-4 text-slate-400" colSpan={6}>Nenhuma geracao registrada ainda.</td></tr> : state.generationLogs.map((log) => {
+          <thead className="text-slate-400"><tr><th className="p-3">Data</th><th className="p-3">Acao</th><th className="p-3">Cliente</th><th className="p-3">Template</th><th className="p-3">Status</th><th className="p-3">Creditos</th><th className="p-3">Erro/detalhe</th><th className="p-3">Acao</th></tr></thead>
+          <tbody>{state.generationLogs.length === 0 ? <tr><td className="p-4 text-slate-400" colSpan={8}>Nenhuma geracao registrada ainda.</td></tr> : state.generationLogs.map((log) => {
             const shoot = state.shoots.find((item) => item.id === log.shoot_id);
-            return <tr key={log.id} className="border-t border-line"><td className="p-3">{formatShootDate(log.created_at)}</td><td className="p-3">{shoot?.title ?? "Ensaio removido"}</td><td className="p-3">{log.provider}</td><td className="p-3"><StatusBadge tone={log.status === "success" ? "good" : log.status === "failed" ? "bad" : "warn"}>{log.status === "success" ? "Sucesso" : log.status === "failed" ? "Erro" : "Pendente"}</StatusBadge></td><td className="p-3">{log.credits_charged}</td><td className="p-3 text-slate-400">{log.error_message || `${log.model} - ${money(log.cost_estimate)}`}</td></tr>;
+            const client = state.clients.find((item) => item.id === shoot?.client_id);
+            return <tr key={log.id} className="border-t border-line"><td className="p-3">{formatShootDate(log.created_at)}</td><td className="p-3">Geracao</td><td className="p-3">{client?.name ?? "-"}</td><td className="p-3">{shoot?.title ?? "Ensaio removido"}</td><td className="p-3"><StatusBadge tone={log.status === "success" ? "good" : log.status === "failed" ? "bad" : "warn"}>{log.status === "success" ? "Sucesso" : log.status === "failed" ? "Erro" : "Pendente"}</StatusBadge></td><td className="p-3">{log.credits_charged}</td><td className="p-3 text-slate-400">{log.error_message || `${log.model} - ${money(log.cost_estimate)}`}</td><td className="p-3">{shoot ? <Button href={`/app/shoots/${shoot.id}`} variant="ghost">Ver geracao</Button> : "-"}</td></tr>;
           })}</tbody>
         </table>
       </Card>
@@ -2229,7 +2429,8 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageTitle title="Configuracoes" text="Dados da conta, plano atual e preferencias basicas." />
+      <PageTitle title="Configuracoes" text="Dados da conta, plano atual, preferencias e politicas de autorizacao." />
+      {isDemoMode() ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Modo demo ativo: alteracoes ficam apenas neste navegador e nao movimentam creditos, pagamentos ou exclusoes reais.</div> : null}
       <div className="grid gap-5 lg:grid-cols-[1fr_.8fr]">
         <Card>
           <h2 className="text-lg font-semibold">Perfil</h2>
@@ -2259,7 +2460,11 @@ export function SettingsPage() {
             <Field label="Plano atual"><input className={inputClass} defaultValue={planLabel(state.profile.plan_type, state.profile.role)} disabled /></Field>
           </div>
         </Card>
-        <Card><h2 className="text-lg font-semibold">Seguranca</h2><p className="mt-3 text-sm leading-6 text-slate-400">Para sair com seguranca, use o menu do usuario no topo do app. Mantenha seu e-mail atualizado para recuperar acesso quando necessario.</p><Button href="/app/support" className="mt-5" variant="secondary">Falar com suporte</Button></Card>
+        <div className="grid gap-5">
+          <Card><h2 className="text-lg font-semibold">Preferencias de geracao</h2><div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Provider ativo: {state.generationConfig.effectiveProvider}</p><p>Creditos por imagem: {state.generationConfig.creditsPerImage}</p><p>Quantidades: {quantitySelectOptions(state).join(", ")}</p></div></Card>
+          <Card><h2 className="text-lg font-semibold">Politica de autorizacao</h2><p className="mt-3 text-sm leading-6 text-slate-400">Gere imagens apenas com consentimento da cliente. Portfolio, WhatsApp e anuncios devem respeitar as marcacoes do ensaio.</p></Card>
+          <Card><h2 className="text-lg font-semibold">Suporte e seguranca</h2><p className="mt-3 text-sm leading-6 text-slate-400">Para sair com seguranca, use o menu do usuario no topo do app. WhatsApp de suporte: +55 11 90000-0000.</p><div className="mt-5 flex flex-wrap gap-2"><Button href="/app/support" variant="secondary">Falar com suporte</Button><Button href="/" variant="ghost">Sair</Button></div></Card>
+        </div>
       </div>
     </>
   );
@@ -2273,7 +2478,7 @@ export function SupportPage() {
     ["Conta", "Se nao conseguir entrar, faca logout e login novamente ou revise o e-mail usado."],
     ["Pagamento", "Compra automatica de creditos ainda esta em preparacao."]
   ];
-  return <><PageTitle title="Suporte" text="Encontre respostas rapidas para problemas comuns de conta, upload, creditos e geracao." action={<Button href="mailto:suporte@photoforge.ai" variant="secondary"><Mail className="h-4 w-4" /> E-mail</Button>} /><div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><Card><MessageCircle className="h-8 w-8 text-cyan" /><h2 className="mt-4 text-lg font-semibold">Precisa de ajuda?</h2><p className="mt-2 text-sm leading-6 text-slate-400">Use o e-mail de suporte ou fale pelo WhatsApp configurado pela equipe. Descreva o cliente, ensaio e mensagem de erro.</p><Button className="mt-5" disabled>WhatsApp em breve</Button></Card><div className="grid gap-3">{faqs.map(([title, text]) => <Card key={title}><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{text}</p></Card>)}</div></div></>;
+  return <><PageTitle title="Suporte" text="Encontre respostas rapidas para problemas comuns de conta, upload, creditos e geracao." action={<Button href="mailto:suporte@photoforge.ai" variant="secondary"><Mail className="h-4 w-4" /> E-mail</Button>} /><div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><Card><MessageCircle className="h-8 w-8 text-cyan" /><h2 className="mt-4 text-lg font-semibold">Precisa de ajuda?</h2><p className="mt-2 text-sm leading-6 text-slate-400">Use os atalhos abaixo para seguir o fluxo ou falar com suporte. Descreva cliente, ensaio e mensagem de erro quando houver.</p><div className="mt-5 grid gap-3"><Button href="https://wa.me/5511900000000" variant="secondary">Falar no WhatsApp</Button><Button href="/app/shoots/new" variant="secondary">Ir para novo ensaio</Button><Button href="/app/templates" variant="secondary">Ver tutorial rapido</Button><Button href="/app/credits" variant="secondary">Comprar creditos</Button></div></Card><div className="grid gap-3">{faqs.map(([title, text]) => <Card key={title}><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{text}</p></Card>)}</div></div></>;
 }
 
 export function AdminPage({ section = "overview" }: { section?: string }) {

@@ -67,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const displayName = profile?.name || profile?.email?.split("@")[0] || "Usuario";
   const initials = displayName.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "PF";
-  const plan = profile?.role === "admin" ? "Admin" : profile?.plan_type === "community" || profile?.plan_type === "Comunidade" ? "Comunidade" : profile?.plan_type === "pro" || profile?.plan_type === "Pro" ? "Pro" : "Publico";
+  const plan = isDemoMode() ? "Demo" : profile?.role === "admin" ? "Admin" : profile?.plan_type === "community" || profile?.plan_type === "Comunidade" ? "Comunidade" : profile?.plan_type === "pro" || profile?.plan_type === "Pro" ? "Pro" : "Publico";
 
   return (
     <div className="min-h-screen bg-ink text-white">
