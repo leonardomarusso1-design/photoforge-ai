@@ -401,6 +401,23 @@ export function DashboardPage() {
   return (
     <>
       <PageTitle title={`Ola, ${firstName(state.profile.name)}. Pronto para criar o proximo ensaio?`} text="Acompanhe clientes, ensaios, creditos e entregas em um painel pensado para operacao diaria." action={<div className="flex flex-wrap gap-2"><Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Gerar novo ensaio</Button><Button href="/app/credits" variant="secondary"><WalletCards className="h-4 w-4" /> Comprar creditos</Button></div>} />
+      <Card className="mb-6 border-cyan/30 bg-cyan/10">
+        <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div>
+            <StatusBadge tone="good">Comece por aqui</StatusBadge>
+            <h2 className="mt-3 text-2xl font-semibold">Crie seu primeiro ensaio vendavel</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-200">Para gerar sua primeira foto, cadastre uma cliente, envie as fotos certas, escolha um modelo e use seus creditos para gerar.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {["Cadastrar cliente", "Enviar fotos", "Escolher template", "Revisar prompt", "Gerar imagem", "Entregar para cliente"].map((item) => <StatusBadge key={item}>{item}</StatusBadge>)}
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[420px]">
+            <Button href="/app/shoots/new">Criar novo ensaio</Button>
+            <Button href="/app/templates" variant="secondary">Ver templates</Button>
+            <Button href="/app/credits" variant="secondary">Comprar creditos</Button>
+          </div>
+        </div>
+      </Card>
       <Card className={`mb-6 grid gap-4 md:grid-cols-[1fr_auto] md:items-center ${lowCredits ? "border-gold/35 bg-gold/10" : "border-cyan/25 bg-cyan/10"}`}>
         <div>
           <StatusBadge tone={lowCredits ? "warn" : "good"}>{lowCredits ? "Saldo baixo" : "Proximo passo"}</StatusBadge>
@@ -497,6 +514,9 @@ function ShootRow({ shoot, client, images = [], shoots = [] }: { shoot: Shoot; c
         <p className="mt-3 text-xs leading-5 text-slate-500">
           {pluralizeImage(generatedCount)} geradas <span className="text-slate-700">-</span> {shoot.credits_used || 0} creditos usados <span className="text-slate-700">-</span> {formatShootDate(shoot.updated_at || shoot.created_at)}
         </p>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {["Revisar", "Gerar", "Refazer", "Baixar", "Marcar entregue"].map((action) => <span key={action} className="rounded-full border border-line bg-white/[.03] px-2.5 py-1 text-slate-300">{action}</span>)}
+        </div>
       </div>
       <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-center">
         <span className="text-xs text-slate-500 sm:hidden">{shootStatusLabel(status)}</span>
@@ -544,13 +564,14 @@ export function ClientsPage() {
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
                 <div><p className="text-slate-500">Cidade</p><p>{client.city || "-"}</p></div>
+                <div><p className="text-slate-500">Idade</p><p>{client.age ? `${client.age} anos` : "-"}</p></div>
                 <div><p className="text-slate-500">Receita</p><p>{money(client.total_revenue)}</p></div>
                 <div><p className="text-slate-500">Ensaios</p><p>{clientShoots.length}</p></div>
                 <div><p className="text-slate-500">Autorizacao</p><p>{authorized ? "Registrada" : "Pendente"}</p></div>
                 <div><p className="text-slate-500">Ultimo ensaio</p><p>{latestClientShoot?.title ?? "-"}</p></div>
                 <div><p className="text-slate-500">Atividade</p><p>{new Date(client.updated_at || client.created_at).toLocaleDateString("pt-BR")}</p></div>
               </div>
-              <div className="mt-5"><Button variant="ghost">Ver detalhes</Button></div>
+              <div className="mt-5 flex flex-wrap gap-2"><Button variant="ghost">Ver detalhes</Button><span className="inline-flex min-h-10 items-center justify-center rounded-lg border border-cyan/40 bg-cyan/10 px-4 py-2 text-sm font-semibold text-cyan">Criar ensaio</span></div>
             </Card>
           </Link>
         );})}
@@ -900,7 +921,7 @@ export function ShootCreatePage() {
   const { state, commit, supabase, loadError } = useDemoState();
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState("");
-  const [clientForm, setClientForm] = useState({ name: "", whatsapp: "", age: "", notes: "" });
+  const [clientForm, setClientForm] = useState({ name: "", whatsapp: "", age: "", notes: "", over50: false });
   const [form, setForm] = useState<Partial<Shoot>>({ title: "", category: "Aniversario", sold_price: 0, quantity: 4, consent_confirmed: false, provider: "mock" });
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [draftShoot, setDraftShoot] = useState<Shoot | null>(null);
@@ -937,7 +958,7 @@ export function ShootCreatePage() {
   async function ensureClient() {
     if (client) return client;
     if (!clientForm.name.trim()) {
-      setFlowError("Informe o nome da cliente antes de continuar.");
+      setFlowError("Escolha ou cadastre uma cliente antes de continuar.");
       return null;
     }
     if (!isValidWhatsapp(clientForm.whatsapp)) {
@@ -949,6 +970,7 @@ export function ShootCreatePage() {
       return null;
     }
     const now = new Date().toISOString();
+    const notesWithAgeFlag = [clientForm.notes, clientForm.over50 ? "Cliente 50+: reforcar idade real, nao rejuvenescer e nao afinar corpo." : ""].filter(Boolean).join("\n");
     if (isDemoMode()) {
       const nextClient: Client = {
         id: uid("client"),
@@ -956,7 +978,7 @@ export function ShootCreatePage() {
         name: clientForm.name.trim(),
         whatsapp: clientForm.whatsapp.trim(),
         age: Number(clientForm.age) || undefined,
-        notes: clientForm.notes || undefined,
+        notes: notesWithAgeFlag || undefined,
         status: "new",
         total_revenue: 0,
         created_at: now,
@@ -974,7 +996,7 @@ export function ShootCreatePage() {
         name: clientForm.name.trim(),
         whatsapp: clientForm.whatsapp.trim(),
         age: Number(clientForm.age) || null,
-        notes: clientForm.notes || null,
+        notes: notesWithAgeFlag || null,
         status: "new",
         total_revenue: 0
       })
@@ -1353,7 +1375,7 @@ export function ShootCreatePage() {
       return;
     }
     if (!ready) {
-      setFlowError(currentState.credits.balance < selectedCreditCost ? "Creditos insuficientes." : "Complete cliente, fotos obrigatorias e consentimento antes de gerar.");
+      setFlowError(currentState.credits.balance < selectedCreditCost ? "Voce precisa de creditos para gerar. Compre creditos ou volte depois." : !readyPhotos ? "Envie as fotos obrigatorias para melhorar a preservacao da identidade." : "Complete cliente, template e consentimento antes de gerar.");
       return;
     }
     setGeneratingDemo(true);
@@ -1445,6 +1467,18 @@ export function ShootCreatePage() {
       <Card>
         {flowError ? <div className="mb-4 rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{flowError}</div> : null}
         {step === 1 && <div className="grid gap-5">
+          <div className="grid gap-3 md:grid-cols-2">
+            <button type="button" onClick={() => setForm({ ...form, recreate_reference_mode: false })} className={`rounded-lg border p-4 text-left transition ${!form.recreate_reference_mode ? "border-cyan bg-cyan/10" : "border-line bg-ink/60 hover:border-cyan/40"}`}>
+              <StatusBadge tone={!form.recreate_reference_mode ? "good" : "default"}>Criar com template</StatusBadge>
+              <h2 className="mt-3 font-semibold">Escolher um modelo pronto</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">Ideal para primeira venda, aniversario, praia, profissional, casual e outros estilos prontos.</p>
+            </button>
+            <button type="button" onClick={() => setForm({ ...form, recreate_reference_mode: true, category: "Personalizado", title: form.title || "Recriar Referencia", recreate_options: { same_pose: true, similar_outfit: true, same_scene: true, same_lighting: true, keep_real_client: true, keep_real_body: true, keep_real_hair: true, keep_real_age: true, iphone_photo: true } })} className={`rounded-lg border p-4 text-left transition ${form.recreate_reference_mode ? "border-gold bg-gold/10" : "border-line bg-ink/60 hover:border-gold/40"}`}>
+              <StatusBadge tone="warn">Mais usado por clientes</StatusBadge>
+              <h2 className="mt-3 font-semibold">Recriar uma referencia</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300">Use quando a cliente mandar uma inspiracao e pedir algo igual. A IA usa a referencia apenas para pose, roupa, ambiente, luz e composicao, preservando rosto, corpo, cabelo e idade da cliente.</p>
+            </button>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Cliente existente"><select className={inputClass} value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}><option value="">Cadastrar rapidamente abaixo</option>{state.clients.filter((item) => !item.deleted_at).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
             <Field label="Nome do ensaio"><input className={inputClass} placeholder="Ex.: Aniversario Luxo da Marina" value={form.title ?? ""} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
@@ -1457,7 +1491,12 @@ export function ShootCreatePage() {
               <Field label="Idade"><input className={inputClass} type="number" min={0} max={130} inputMode="numeric" value={clientForm.age} onChange={(e) => setClientForm({ ...clientForm, age: e.target.value.replace(/\D/g, "") })} /></Field>
               <Field label="Observacoes"><textarea className={inputClass} rows={3} value={clientForm.notes} onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })} /></Field>
             </div>
+            <label className="mt-4 flex items-start gap-3 rounded-lg border border-line bg-panel/70 p-3 text-sm text-slate-300">
+              <input type="checkbox" className="mt-1" checked={clientForm.over50 || Number(clientForm.age) >= 50} onChange={(event) => setClientForm({ ...clientForm, over50: event.target.checked })} />
+              <span><span className="block font-semibold">Cliente tem 50 anos ou mais</span><span className="mt-1 block text-slate-400">O prompt sera reforcado para nao rejuvenescer, nao afinar o corpo e manter pele, bracos, pernas e proporcoes compativeis com a idade real.</span></span>
+            </label>
           </div> : null}
+          {(client?.age && client.age >= 50) || clientForm.over50 || Number(clientForm.age) >= 50 ? <div className="rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-gold">O prompt sera reforcado para nao rejuvenescer, nao afinar o corpo e manter pele, bracos, pernas e proporcoes compativeis com a idade real.</div> : null}
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Categoria"><select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></Field>
             <Field label="Valor vendido"><input className={inputClass} type="number" value={form.sold_price ?? 0} onChange={(e) => setForm({ ...form, sold_price: Number(e.target.value) })} /></Field>
@@ -1515,10 +1554,10 @@ function TemplatePickStep({ selectedTemplate, onSelect }: { selectedTemplate: st
                     <button key={template.id} type="button" onClick={() => onSelect(template.id)} className={`overflow-hidden rounded-lg border bg-ink/70 text-left transition hover:-translate-y-0.5 hover:border-cyan/60 ${selected ? "border-cyan shadow-premium" : "border-line"}`}>
                       <img src={template.image} alt={template.name} className="aspect-[4/3] w-full object-cover" />
                       <div className="p-3">
-                        <div className="flex flex-wrap gap-2"><StatusBadge tone={template.popular ? "good" : "default"}>{template.subtype}</StatusBadge><StatusBadge tone="warn">{template.credits} creditos</StatusBadge></div>
+                        <div className="flex flex-wrap gap-2"><StatusBadge tone={template.popular ? "good" : "default"}>{template.subtype}</StatusBadge>{template.badge ? <StatusBadge tone={template.name === "Recriar Referencia" ? "warn" : "good"}>{template.badge}</StatusBadge> : null}<StatusBadge tone="warn">{template.credits} creditos</StatusBadge></div>
                         <h4 className="mt-3 font-semibold">{template.name}</h4>
                         <p className="mt-1 text-xs leading-5 text-slate-400">{template.description}</p>
-                        <span className="mt-3 inline-flex text-sm font-semibold text-cyan">{selected ? "Selecionado" : "Usar template"}</span>
+                        <span className="mt-3 inline-flex text-sm font-semibold text-cyan">{selected ? "Selecionado" : "Criar ensaio com este modelo"}</span>
                       </div>
                     </button>
                   );
@@ -1644,8 +1683,20 @@ function ConsentStep({ form, setForm }: { form: Partial<Shoot>; setForm: (next: 
 function PhotoStep({ refs, previews, onUpload, onRemove }: { refs: ReferencePhoto[]; previews: Record<string, string>; onUpload: (type: string, file: File) => void; onRemove: (type: string) => void }) {
   return (
     <div className="grid gap-5">
-      <div className="rounded-lg border border-line bg-ink/60 p-4 text-sm leading-6 text-slate-300">Use fotos com boa luz, rosto nitido, sem filtro forte e corpo visivel. Quanto melhor a foto, melhor o resultado.</div>
-      <div className="grid gap-3 md:grid-cols-2">{requiredPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={refs.find((ref) => ref.type === photo.type)} preview={previews[photo.type]} required onUpload={onUpload} onRemove={onRemove} />)}</div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-4 text-sm leading-6 text-slate-200">As fotos da cliente definem a identidade. A referencia serve apenas para pose, roupa, ambiente, luz e composicao.</div>
+        <div className="rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-gold">Quanto melhor a foto de entrada, melhor sera o resultado final. Use boa luz, rosto nitido, sem filtro forte e corpo visivel.</div>
+      </div>
+      <div>
+        <h2 className="text-lg font-semibold">Obrigatorio</h2>
+        <p className="mt-1 text-sm text-slate-400">Essas fotos ajudam a preservar rosto, sorriso e proporcoes reais.</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">{requiredPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={refs.find((ref) => ref.type === photo.type)} preview={previews[photo.type]} required onUpload={onUpload} onRemove={onRemove} />)}</div>
+      </div>
+      <div>
+        <h2 className="text-lg font-semibold">Avancado/opcional</h2>
+        <p className="mt-1 text-sm text-slate-400">Use para melhorar corpo, cabelo, tatuagens, roupa, costas ou uma referencia extra.</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">{optionalPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(refs, photo.type)} preview={previews[photo.type]} onUpload={onUpload} onRemove={onRemove} />)}</div>
+      </div>
     </div>
   );
 }
@@ -2245,7 +2296,7 @@ function GalleryGrid({ images, title, showProvider = false, clients = [], shoots
       {images.length === 0 ? <EmptyGalleryState /> : <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{images.map((image, index) => {
         const shoot = shoots.find((item) => item.id === image.shoot_id);
         const client = clients.find((item) => item.id === image.client_id);
-        return <Card key={image.id} className="group overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50"><button type="button" className="block w-full" onClick={() => onPreview?.(image)}><img src={image.file_url} alt="Imagem gerada" className="aspect-[3/4] w-full object-cover transition duration-300 group-hover:scale-[1.02]" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=fallback-${image.id}-${index}`; }} /></button><div className="p-3"><div className="flex flex-wrap gap-2">{showProvider ? <StatusBadge tone="good">{image.provider}</StatusBadge> : <StatusBadge tone="good">Imagem gerada</StatusBadge>}<StatusBadge tone="default">{client?.name ?? "Cliente"}</StatusBadge>{shoot?.category ? <StatusBadge tone="default">{shoot.category}</StatusBadge> : null}<StatusBadge tone={shootStatusTone(shoot?.status ?? image.status)}>{shootStatusLabel(shoot?.status ?? image.status)}</StatusBadge>{image.portfolio_authorized ? <StatusBadge tone="good">Portfolio autorizado</StatusBadge> : null}</div><div className="mt-3"><p className="text-xs text-slate-500">{shoot?.title ?? "Ensaio"} - {formatShootDate(image.created_at)} - {shoot?.credits_used ?? image.cost_estimate} creditos</p><div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" title="Favoritar" onClick={() => onFavorite?.(image)}><Heart className={`h-4 w-4 ${image.is_favorite ? "fill-cyan text-cyan" : ""}`} /></Button><Button variant="ghost" title="Baixar" onClick={() => window.open(image.file_url, "_blank")}><Download className="h-4 w-4" /></Button><Button variant="ghost" title="Copiar prompt" onClick={() => navigator.clipboard?.writeText(image.prompt_used)}><Copy className="h-4 w-4" /></Button>{shoot ? <Button variant="ghost" title="Refazer com mesmo prompt" href={`/app/shoots/${shoot.id}`}><RefreshCw className="h-4 w-4" /></Button> : null}<Button variant="ghost" title="Marcar entregue" onClick={() => onDelivered?.(image)}>Entregue</Button><Button variant="ghost" title="Portfolio" onClick={() => onPortfolio?.(image)}>Portfolio</Button><Button variant="ghost" title="Excluir" onClick={() => onDelete?.(image)}><Trash2 className="h-4 w-4" /></Button></div></div></div></Card>;
+        return <Card key={image.id} className="group overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50"><button type="button" className="block w-full" onClick={() => onPreview?.(image)}><img src={image.file_url} alt="Imagem gerada" className="aspect-[3/4] w-full object-cover transition duration-300 group-hover:scale-[1.02]" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=fallback-${image.id}-${index}`; }} /></button><div className="p-3"><div className="flex flex-wrap gap-2">{showProvider ? <StatusBadge tone="good">{image.provider}</StatusBadge> : <StatusBadge tone="good">Imagem gerada</StatusBadge>}<StatusBadge tone="default">{client?.name ?? "Cliente"}</StatusBadge>{shoot?.category ? <StatusBadge tone="default">{shoot.category}</StatusBadge> : null}<StatusBadge tone={shootStatusTone(shoot?.status ?? image.status)}>{shootStatusLabel(shoot?.status ?? image.status)}</StatusBadge>{image.portfolio_authorized ? <StatusBadge tone="good">Portfolio autorizado</StatusBadge> : null}</div><div className="mt-3"><p className="text-xs text-slate-500">{shoot?.title ?? "Ensaio"} - {formatShootDate(image.created_at)} - {shoot?.credits_used ?? image.cost_estimate} creditos</p><div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" title="Favoritar" onClick={() => onFavorite?.(image)}><Heart className={`h-4 w-4 ${image.is_favorite ? "fill-cyan text-cyan" : ""}`} /></Button><Button variant="ghost" title="Baixar" onClick={() => window.open(image.file_url, "_blank")}><Download className="h-4 w-4" /></Button><Button variant="ghost" title="Copiar prompt" onClick={() => navigator.clipboard?.writeText(image.prompt_used)}><Copy className="h-4 w-4" /></Button>{shoot ? <Button variant="ghost" title="Refazer com mesmo prompt" href={`/app/shoots/${shoot.id}`}><RefreshCw className="h-4 w-4" /></Button> : null}<Button variant="ghost" title="Marcar entregue" onClick={() => onDelivered?.(image)}>Entregue</Button><Button variant="ghost" title="Portfolio" onClick={() => onPortfolio?.(image)}>Portfolio</Button><Button variant="ghost" title="Criar imagem de exemplo para WhatsApp" onClick={() => navigator.clipboard?.writeText(`Exemplo de ensaio PhotoForge AI para WhatsApp: ${image.file_url}`)}>Exemplo WhatsApp</Button><Button variant="ghost" title="Excluir" onClick={() => onDelete?.(image)}><Trash2 className="h-4 w-4" /></Button></div></div></div></Card>;
       })}</div>}
     </section>
   );
@@ -2272,15 +2323,15 @@ export function CreditsPage() {
   }
   return (
     <>
-      <PageTitle title="Creditos" text="Veja saldo, uso, historico e pacotes. No demo, a compra fica apenas simulada." action={<Button onClick={buyCredits}>Comprar creditos</Button>} />
+      <PageTitle title="Creditos" text="Use creditos para gerar fotos para clientes e vender seus proprios ensaios." action={<Button onClick={buyCredits}>Comprar creditos</Button>} />
       {demoMessage ? <div className="mb-6 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">{demoMessage}</div> : null}
       <Card className="mb-6 grid gap-5 border-cyan/25 bg-cyan/10 md:grid-cols-3">
         <div><p className="text-sm text-slate-300">Seus creditos</p><div className="mt-2 text-5xl font-semibold">{state.credits.balance}</div><p className="mt-2 text-sm text-slate-400">Saldo disponivel para novas geracoes.</p></div>
         <div><p className="text-sm text-slate-300">Creditos usados</p><div className="mt-2 text-5xl font-semibold">{state.credits.total_used}</div><p className="mt-2 text-sm text-slate-400">Historico total de consumo.</p></div>
-        <div><p className="text-sm text-slate-300">Plano</p><div className="mt-3"><StatusBadge tone={community ? "good" : "default"}>{community ? "Beneficio da comunidade" : "Preco publico"}</StatusBadge></div><p className="mt-4 text-sm leading-6 text-slate-400">{community ? "Membros da comunidade veem preco reduzido nos pacotes." : "Entre na comunidade para liberar preco especial."}</p></div>
+        <div><p className="text-sm text-slate-300">Plano</p><div className="mt-3"><StatusBadge tone={community ? "good" : "default"}>{community ? "Beneficio da comunidade" : "Preco publico"}</StatusBadge></div><p className="mt-4 text-sm leading-6 text-slate-300">Membros pagam menos por creditos e conseguem melhorar a margem por ensaio vendido.</p></div>
       </Card>
       {state.credits.balance < state.generationConfig.creditsPerImage ? <div className="mb-6 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Voce nao tem creditos suficientes para gerar agora. Escolha um pacote para continuar.</div> : null}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{packages.map((pack) => <Card key={pack.name} className={`${pack.highlight ? "border-gold/40 bg-gold/10" : "hover:border-cyan/40"}`}><div className="flex flex-wrap items-center gap-2"><StatusBadge tone={pack.highlight ? "warn" : "default"}>{pack.name}</StatusBadge>{pack.highlight ? <StatusBadge tone="warn">melhor custo</StatusBadge> : null}{pack.community || community ? <StatusBadge tone="good">beneficio da comunidade</StatusBadge> : null}</div><h2 className="mt-4 text-3xl font-semibold">{pack.credits}</h2><p className="mt-1 text-sm text-slate-400">creditos</p><div className="mt-4 text-sm"><p className="text-slate-400">Preco publico: {money(pack.publicPrice)}</p><p className="mt-1 text-cyan">Membro: {money(pack.memberPrice)}</p></div><p className="mt-3 min-h-10 text-sm leading-5 text-slate-400">{pack.text}</p><Button className="mt-5 w-full" onClick={buyCredits}>Comprar</Button><p className="mt-3 text-xs text-gold">{isDemoMode() ? "Compra simulada no modo demo" : "Checkout em breve"}</p></Card>)}</div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{packages.map((pack) => <Card key={pack.name} className={`${pack.highlight ? "border-gold/40 bg-gold/10" : "hover:border-cyan/40"}`}><div className="flex flex-wrap items-center gap-2"><StatusBadge tone={pack.highlight ? "warn" : "default"}>{pack.name}</StatusBadge>{pack.highlight ? <StatusBadge tone="warn">pacote recomendado</StatusBadge> : null}{pack.community || community ? <StatusBadge tone="good">beneficio da comunidade</StatusBadge> : null}</div><h2 className="mt-4 text-3xl font-semibold">{pack.credits}</h2><p className="mt-1 text-sm text-slate-400">creditos</p><div className="mt-4 text-sm"><p className="text-slate-300">Preco publico: {money(pack.publicPrice)}</p><p className="mt-1 text-cyan">Preco membro: {money(pack.memberPrice)}</p><p className="mt-1 text-slate-400">Custo aprox. por geracao: {money((community ? pack.memberPrice : pack.publicPrice) / Math.max(pack.credits, 1) * 4)}</p></div><p className="mt-3 min-h-10 text-sm leading-5 text-slate-400">{pack.text}</p><Button className="mt-5 w-full" onClick={buyCredits}>Comprar</Button><p className="mt-3 text-xs text-gold">{isDemoMode() ? "Compra simulada no modo demo" : "Checkout em breve"}</p></Card>)}</div>
       <Card className="mt-6"><h2 className="text-lg font-semibold">Historico de transacoes</h2><div className="mt-4 grid gap-2">{state.creditTransactions.length === 0 ? <EmptyState title="Nenhuma transacao ainda." text="Quando creditos forem usados ou adicionados, o historico aparece aqui." /> : state.creditTransactions.map((tx) => <div key={tx.id} className="flex justify-between rounded-lg border border-line bg-ink p-3 text-sm"><span>{tx.description}</span><span className={tx.amount < 0 ? "text-red-200" : "text-cyan"}>{tx.amount}</span></div>)}</div></Card>
     </>
   );
@@ -2307,10 +2358,10 @@ export function TemplatesPage() {
           <Card key={template.id} className="overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50">
             <img src={template.image} alt={template.name} className="aspect-[4/3] w-full object-cover" />
             <div className="p-5">
-              <div className="flex flex-wrap gap-2"><StatusBadge tone={template.popular ? "good" : "default"}>{templateCategoryForShoot(template.category)}</StatusBadge><StatusBadge tone="warn">{template.credits} creditos</StatusBadge><StatusBadge>{template.subtype}</StatusBadge></div>
+              <div className="flex flex-wrap gap-2"><StatusBadge tone={template.popular ? "good" : "default"}>{templateCategoryForShoot(template.category)}</StatusBadge>{template.badge ? <StatusBadge tone={template.name === "Recriar Referencia" ? "warn" : "good"}>{template.badge}</StatusBadge> : null}<StatusBadge tone="warn">{template.credits} creditos</StatusBadge><StatusBadge>{template.subtype}</StatusBadge></div>
               <h2 className="mt-4 text-lg font-semibold">{template.name}</h2>
               <p className="mt-2 min-h-12 text-sm leading-6 text-slate-400">{template.description}</p>
-              <Button href={`/app/shoots/new?template=${template.id}`} className="mt-5 w-full">Usar template</Button>
+              <Button href={`/app/shoots/new?template=${template.id}`} className="mt-5 w-full">Criar ensaio com este modelo</Button>
             </div>
           </Card>
         ))}
@@ -2324,6 +2375,14 @@ export function ResultsPage() {
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
   const results = calculateResults(state);
+  const deliveredShoots = results.activeShoots.filter((shoot) => shoot.status === "delivered" || shoot.status === "completed");
+  const achievements = [
+    ["Primeira cliente", results.activeClients.length > 0],
+    ["Primeiro ensaio entregue", deliveredShoots.length > 0],
+    ["10 imagens geradas", state.generatedImages.filter((image) => !image.deleted_at).length >= 10],
+    ["100 creditos usados", results.creditsUsed >= 100],
+    ["Primeira venda", results.revenue > 0]
+  ] as const;
   return (
     <>
       <PageTitle title="Resultados" text="Lucrômetro simples para acompanhar volume, receita informada e margem estimada." />
@@ -2335,30 +2394,38 @@ export function ResultsPage() {
         <MetricCard label="Valor vendido" value={money(results.revenue)} Icon={CheckCircle2} tone="cyan" />
         <MetricCard label="Custo estimado" value={money(results.estimatedCost)} Icon={Sparkles} tone="gold" />
         <MetricCard label="Lucro estimado" value={money(results.profit)} Icon={BarChart3} tone="lime" />
-        <MetricCard label="Ranking futuro" value="Em breve" Icon={ShieldCheck} tone="violet" />
+        <MetricCard label="Meta do mes" value={money(Math.max(1500, results.revenue + 500))} Icon={ShieldCheck} tone="violet" />
       </div>
-      <Card className="mt-6">
-        <h2 className="text-lg font-semibold">Base para ranking futuro</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-400">A tela ja consolida volume, creditos, receita e lucro. O ranking pode entrar depois usando esses mesmos indicadores por periodo, turma ou comunidade.</p>
-      </Card>
+      <div className="mt-6 grid gap-5 lg:grid-cols-2">
+        <Card><h2 className="text-lg font-semibold">Seu progresso</h2><div className="mt-4 grid gap-2">{achievements.map(([label, done]) => <div key={label} className="flex items-center justify-between rounded-lg border border-line bg-ink p-3 text-sm"><span>{label}</span><StatusBadge tone={done ? "good" : "default"}>{done ? "feito" : "em andamento"}</StatusBadge></div>)}</div></Card>
+        <Card><h2 className="text-lg font-semibold">Ranking</h2><p className="mt-2 text-sm leading-6 text-slate-400">Ranking por comunidade, turma e periodo fica em breve. Por enquanto acompanhe faturamento, creditos usados, custo estimado, lucro e ticket medio.</p><StatusBadge tone="warn">Em breve</StatusBadge></Card>
+      </div>
     </>
   );
 }
 
 export function HistoryPage() {
   const { state, loadError } = useDemoState();
+  const [filter, setFilter] = useState("all");
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
+  const logRows = state.generationLogs.map((log) => ({ kind: "generations", date: log.created_at, log }));
+  const creditRows = state.creditTransactions.map((tx) => ({ kind: "credits", date: tx.created_at, tx }));
+  const rows = [...logRows, ...creditRows]
+    .filter((row) => filter === "all" || row.kind === filter || (filter === "errors" && "log" in row && row.log.status === "failed") || (filter === "deliveries" && "log" in row && state.shoots.find((shoot) => shoot.id === row.log.shoot_id)?.status === "delivered"))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return (
     <>
       <PageTitle title="Historico" text="Acompanhe tentativas de geracao, sucessos, erros e creditos cobrados." />
+      <Card className="mb-5"><div className="flex gap-2 overflow-x-auto">{[["all", "Tudo"], ["generations", "Geracoes"], ["credits", "Creditos"], ["clients", "Clientes"], ["errors", "Erros"], ["deliveries", "Entregas"]].map(([value, label]) => <Button key={value} variant={filter === value ? "primary" : "ghost"} onClick={() => setFilter(value)}>{label}</Button>)}</div></Card>
       <Card className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="text-slate-400"><tr><th className="p-3">Data</th><th className="p-3">Acao</th><th className="p-3">Cliente</th><th className="p-3">Template</th><th className="p-3">Status</th><th className="p-3">Creditos</th><th className="p-3">Erro/detalhe</th><th className="p-3">Acao</th></tr></thead>
-          <tbody>{state.generationLogs.length === 0 ? <tr><td className="p-4 text-slate-400" colSpan={8}>Nenhuma geracao registrada ainda.</td></tr> : state.generationLogs.map((log) => {
-            const shoot = state.shoots.find((item) => item.id === log.shoot_id);
+          <tbody>{rows.length === 0 ? <tr><td className="p-4 text-slate-400" colSpan={8}>Nenhum item encontrado neste filtro.</td></tr> : rows.map((row) => {
+            if ("tx" in row) return <tr key={row.tx.id} className="border-t border-line"><td className="p-3">{formatShootDate(row.tx.created_at)}</td><td className="p-3">Credito</td><td className="p-3">-</td><td className="p-3">-</td><td className="p-3"><StatusBadge tone={row.tx.amount < 0 ? "warn" : "good"}>{row.tx.type}</StatusBadge></td><td className="p-3">{row.tx.amount}</td><td className="p-3 text-slate-400">{row.tx.description}</td><td className="p-3">-</td></tr>;
+            const shoot = state.shoots.find((item) => item.id === row.log.shoot_id);
             const client = state.clients.find((item) => item.id === shoot?.client_id);
-            return <tr key={log.id} className="border-t border-line"><td className="p-3">{formatShootDate(log.created_at)}</td><td className="p-3">Geracao</td><td className="p-3">{client?.name ?? "-"}</td><td className="p-3">{shoot?.title ?? "Ensaio removido"}</td><td className="p-3"><StatusBadge tone={log.status === "success" ? "good" : log.status === "failed" ? "bad" : "warn"}>{log.status === "success" ? "Sucesso" : log.status === "failed" ? "Erro" : "Pendente"}</StatusBadge></td><td className="p-3">{log.credits_charged}</td><td className="p-3 text-slate-400">{log.error_message || `${log.model} - ${money(log.cost_estimate)}`}</td><td className="p-3">{shoot ? <Button href={`/app/shoots/${shoot.id}`} variant="ghost">Ver geracao</Button> : "-"}</td></tr>;
+            return <tr key={row.log.id} className="border-t border-line"><td className="p-3">{formatShootDate(row.log.created_at)}</td><td className="p-3">Geracao</td><td className="p-3">{client?.name ?? "-"}</td><td className="p-3">{shoot?.title ?? "Ensaio removido"}</td><td className="p-3"><StatusBadge tone={row.log.status === "success" ? "good" : row.log.status === "failed" ? "bad" : "warn"}>{row.log.status === "success" ? "Sucesso" : row.log.status === "failed" ? "Erro" : "Pendente"}</StatusBadge></td><td className="p-3">{row.log.credits_charged}</td><td className="p-3 text-slate-400">{row.log.error_message || `${row.log.model} - ${money(row.log.cost_estimate)}`}</td><td className="p-3">{shoot ? <Button href={`/app/shoots/${shoot.id}`} variant="ghost">Ver ensaio</Button> : "-"}</td></tr>;
           })}</tbody>
         </table>
       </Card>
@@ -2430,7 +2497,7 @@ export function SettingsPage() {
   return (
     <>
       <PageTitle title="Configuracoes" text="Dados da conta, plano atual, preferencias e politicas de autorizacao." />
-      {isDemoMode() ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Modo demo ativo: alteracoes ficam apenas neste navegador e nao movimentam creditos, pagamentos ou exclusoes reais.</div> : null}
+      {isDemoMode() ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Voce esta no modo demo. Nenhuma compra ou geracao real sera cobrada.</div> : null}
       <div className="grid gap-5 lg:grid-cols-[1fr_.8fr]">
         <Card>
           <h2 className="text-lg font-semibold">Perfil</h2>
@@ -2458,12 +2525,13 @@ export function SettingsPage() {
             <Field label="E-mail"><input className={inputClass} defaultValue={state.profile.email} disabled /></Field>
             <Field label="WhatsApp"><input className={inputClass} defaultValue={state.profile.whatsapp ?? ""} disabled /></Field>
             <Field label="Plano atual"><input className={inputClass} defaultValue={planLabel(state.profile.plan_type, state.profile.role)} disabled /></Field>
+            <Field label="Status de membro"><input className={inputClass} defaultValue={isCommunityPlan(state.profile.plan_type) ? "Membro da comunidade" : "Plano publico"} disabled /></Field>
           </div>
         </Card>
         <div className="grid gap-5">
           <Card><h2 className="text-lg font-semibold">Preferencias de geracao</h2><div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Provider ativo: {state.generationConfig.effectiveProvider}</p><p>Creditos por imagem: {state.generationConfig.creditsPerImage}</p><p>Quantidades: {quantitySelectOptions(state).join(", ")}</p></div></Card>
-          <Card><h2 className="text-lg font-semibold">Politica de autorizacao</h2><p className="mt-3 text-sm leading-6 text-slate-400">Gere imagens apenas com consentimento da cliente. Portfolio, WhatsApp e anuncios devem respeitar as marcacoes do ensaio.</p></Card>
-          <Card><h2 className="text-lg font-semibold">Suporte e seguranca</h2><p className="mt-3 text-sm leading-6 text-slate-400">Para sair com seguranca, use o menu do usuario no topo do app. WhatsApp de suporte: +55 11 90000-0000.</p><div className="mt-5 flex flex-wrap gap-2"><Button href="/app/support" variant="secondary">Falar com suporte</Button><Button href="/" variant="ghost">Sair</Button></div></Card>
+          <Card><h2 className="text-lg font-semibold">Politica de autorizacao</h2><p className="mt-3 text-sm leading-6 text-slate-400">Gere imagens apenas com consentimento da cliente. Portfolio, WhatsApp e anuncios devem respeitar as marcacoes do ensaio.</p><Button href="/image-policy" className="mt-5" variant="secondary">Ver politica de imagem</Button></Card>
+          <Card><h2 className="text-lg font-semibold">Suporte e seguranca</h2><p className="mt-3 text-sm leading-6 text-slate-400">WhatsApp de suporte: +55 11 90000-0000. Leia tambem os termos de uso antes de vender ensaios para clientes.</p><div className="mt-5 flex flex-wrap gap-2"><Button href="/app/support" variant="secondary">Falar com suporte</Button><Button href="/terms" variant="secondary">Termos de uso</Button><Button href="/" variant="ghost">Sair</Button></div></Card>
         </div>
       </div>
     </>
@@ -2478,7 +2546,7 @@ export function SupportPage() {
     ["Conta", "Se nao conseguir entrar, faca logout e login novamente ou revise o e-mail usado."],
     ["Pagamento", "Compra automatica de creditos ainda esta em preparacao."]
   ];
-  return <><PageTitle title="Suporte" text="Encontre respostas rapidas para problemas comuns de conta, upload, creditos e geracao." action={<Button href="mailto:suporte@photoforge.ai" variant="secondary"><Mail className="h-4 w-4" /> E-mail</Button>} /><div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><Card><MessageCircle className="h-8 w-8 text-cyan" /><h2 className="mt-4 text-lg font-semibold">Precisa de ajuda?</h2><p className="mt-2 text-sm leading-6 text-slate-400">Use os atalhos abaixo para seguir o fluxo ou falar com suporte. Descreva cliente, ensaio e mensagem de erro quando houver.</p><div className="mt-5 grid gap-3"><Button href="https://wa.me/5511900000000" variant="secondary">Falar no WhatsApp</Button><Button href="/app/shoots/new" variant="secondary">Ir para novo ensaio</Button><Button href="/app/templates" variant="secondary">Ver tutorial rapido</Button><Button href="/app/credits" variant="secondary">Comprar creditos</Button></div></Card><div className="grid gap-3">{faqs.map(([title, text]) => <Card key={title}><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{text}</p></Card>)}</div></div></>;
+  return <><PageTitle title="Suporte" text="Encontre respostas rapidas para problemas comuns de conta, upload, creditos e geracao." action={<Button href="mailto:suporte@photoforge.ai" variant="secondary"><Mail className="h-4 w-4" /> E-mail</Button>} /><div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><Card><MessageCircle className="h-8 w-8 text-cyan" /><h2 className="mt-4 text-lg font-semibold">Precisa de ajuda?</h2><p className="mt-2 text-sm leading-6 text-slate-400">Use os atalhos abaixo para seguir o fluxo ou falar com suporte. Descreva cliente, ensaio e mensagem de erro quando houver.</p><div className="mt-5 grid gap-3"><Button href="https://wa.me/5511900000000" variant="secondary">Falar no WhatsApp</Button><Button href="/app/templates" variant="secondary">Ver tutorial rapido</Button><Button href="/app/shoots/new">Criar novo ensaio</Button><Button href="/app/credits" variant="secondary">Comprar creditos</Button><Button href="/image-policy" variant="ghost">Guia de fotos boas</Button></div></Card><div className="grid gap-3">{faqs.map(([title, text]) => <Card key={title}><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{text}</p></Card>)}</div></div></>;
 }
 
 export function AdminPage({ section = "overview" }: { section?: string }) {

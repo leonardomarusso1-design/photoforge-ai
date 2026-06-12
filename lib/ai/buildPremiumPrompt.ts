@@ -4,6 +4,8 @@ const identityBlock = `Use the uploaded photos only as identity and body referen
 
 const anatomyBlock = `Maintain realistic human anatomy, natural posture, correct hands, correct fingers, correct legs, realistic shoulders, realistic feet and normal body proportions. Keep the person looking their real age. Do not make the person younger or older unless explicitly requested. Preserve the original hair color, hair volume, hairline, haircut and natural texture. Preserve natural skin texture, pores, small marks, wrinkles, moles and realistic imperfections. Avoid plastic skin, over-smoothing or beauty filter look.`;
 
+const matureClientBlock = `The client is 50 years old or older. Do not rejuvenate. Do not slim the body. Preserve age-compatible skin texture, arms, legs, face, neck, hands, natural body proportions, natural wrinkles and real mature features. The client must still look like the same real person at the real age.`;
+
 const categoryPrompts: Record<string, string> = {
   Aniversario: "Create a realistic birthday photoshoot in a beautiful decorated environment, elegant balloons, premium lighting, tasteful composition, professional camera look, realistic celebration atmosphere.",
   Casal: "Create a realistic couple photoshoot with natural chemistry, elegant composition, romantic but not exaggerated mood, realistic body interaction, natural hands and authentic expressions. The man should have a calm and confident neutral expression, mouth closed, no visible teeth, no exaggerated smile, unless the user explicitly requests otherwise.",
@@ -106,10 +108,16 @@ function optionalReferenceBlock(referencePhotos: ReferencePhoto[]) {
   return descriptions.length > 0 ? descriptions.join(" ") : "";
 }
 
+function isMatureClient(client: Client, shoot: Shoot) {
+  const notes = normalizeKey([client.notes, shoot.free_notes].filter(Boolean).join(" "));
+  return Boolean((client.age && client.age >= 50) || notes.includes("50 anos") || notes.includes("50+") || notes.includes("cliente 50"));
+}
+
 export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos: ReferencePhoto[]) {
   const tattoos = referencePhotos.some((photo) => photo.type.includes("tattoo"));
   const outfit = buildOutfitLine(shoot);
   const compositionGoal = buildCompositionGoal(shoot);
+  const matureClient = isMatureClient(client, shoot);
   const scene = [
     categoryPrompts[shoot.category] ?? "Create a realistic professional photoshoot with premium composition, believable location, natural colors and high-end photography look.",
     shoot.location && `Location/scenario: ${shoot.location}.`,
@@ -134,6 +142,7 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
   return [
     `Identity priority: ${identityBlock}`,
     `Client: ${client.name}${client.age ? `, ${client.age} years old` : ""}.`,
+    matureClient ? matureClientBlock : "",
     tattoos ? "Preserve all visible tattoos accurately in the same body areas, with realistic placement, scale and orientation." : "",
     `Body and proportions: ${anatomyBlock}`,
     `Scene: ${scene}`,
@@ -141,6 +150,7 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
     direction ? `Pose and expression: ${direction}` : "",
     `Composition: ${compositionGoal}. If a beach, rock, ocean or environment is requested, show the beach/ocean/surroundings clearly and keep the framing open enough to see the body pose.`,
     references ? `Optional references: ${references} Face references are for identity only, not clothing, background or crop.` : "Reference usage: face and body photos are for identity, age, hair and body proportions only, not clothing, background or crop.",
+    shoot.recreate_reference_mode ? "Recreate-reference mode: use the optional reference only for pose, outfit, environment, lighting and composition. Do not copy the reference person's face, body, age, hair, proportions or identity. Preserve the real client's face, body, hair, age, skin texture and natural proportions completely." : "",
     "Photographic quality: realistic DSLR photo, professional photography, high detail, real human skin, realistic shadows, natural colors, believable background, no artificial AI look.",
     `Negative prompt: ${defaultNegativePrompt}. Do not copy hoodie, sweatshirt, casual clothing, indoor background or tight face crop from the uploaded identity references unless explicitly requested. Do not add text, labels, logos, watermarks or written words inside the image.`
   ].filter(Boolean).join("\n\n");

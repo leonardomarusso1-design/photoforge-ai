@@ -19,6 +19,28 @@ function logSupabaseError(context: string, error: unknown) {
   });
 }
 
+const friendlyGeminiError = "Não foi possível gerar a imagem agora. Pode ser limite temporário da API ou configuração de cobrança. Tente novamente em alguns minutos ou fale com o suporte.";
+
+function summarizedError(error: unknown) {
+  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "unknown_error";
+  return raw.replace(process.env.GEMINI_API_KEY ?? "__NO_GEMINI_KEY__", "[redacted]").slice(0, 260);
+}
+
+function logGenerationError(args: { userId?: string; provider?: string; model?: string; status: string; error: unknown }) {
+  console.error("Generation provider error", {
+    user_id: args.userId ?? null,
+    provider: args.provider ?? null,
+    model: args.model ?? null,
+    status: args.status,
+    error: summarizedError(args.error)
+  });
+}
+
+function isGeminiFriendlyError(error: unknown) {
+  const message = summarizedError(error).toLowerCase();
+  return ["gemini", "google", "quota", "billing", "bill", "model", "rate", "429", "403", "401", "resource_exhausted", "permission_denied", "not found"].some((token) => message.includes(token));
+}
+
 function storageRouteForPath(path: string) {
   return `/api/generated-image/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
@@ -175,7 +197,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Nao foi possivel consultar as fotos obrigatorias." }, { status: 400 });
     }
 
-    const required = ["face_neutral", "face_smiling", "full_body_front", "full_body_side"];
+    const required = ["face_neutral", "face_smiling", "full_body_front"];
     const sent = new Set((referencePhotos ?? []).map((photo) => photo.type));
     if (!required.every((type) => sent.has(type))) {
       return NextResponse.json({ error: "Envie todas as fotos obrigatorias antes de continuar." }, { status: 400 });
@@ -280,21 +302,27 @@ export async function POST(request: Request) {
       .eq("id", trustedShoot.id)
       .eq("user_id", user.id);
 
-    const result = await generateImagesWithProvider({
-      shoot: trustedShoot,
-      client: trustedClient,
-      referencePhotos: trustedReferencePhotos,
-      referenceImageUrls,
-      credits,
-      providerName,
-      isAdmin,
-      creditCost: creditsCharged,
-      qualityLog: photoQuality.summary,
-      primaryIdentityPhotoId: primaryReference?.id ?? null,
-      referencePhotoIds: trustedReferencePhotos.map((photo) => photo.id),
-      rejectedPhotoIds: photoQuality.rejected.map((photo) => photo.id),
-      warningPhotoIds: photoQuality.warning.map((photo) => photo.id)
-    });
+    let result: Awaited<ReturnType<typeof generateImagesWithProvider>>;
+    try {
+      result = await generateImagesWithProvider({
+        shoot: trustedShoot,
+        client: trustedClient,
+        referencePhotos: trustedReferencePhotos,
+        referenceImageUrls,
+        credits,
+        providerName,
+        isAdmin,
+        creditCost: creditsCharged,
+        qualityLog: photoQuality.summary,
+        primaryIdentityPhotoId: primaryReference?.id ?? null,
+        referencePhotoIds: trustedReferencePhotos.map((photo) => photo.id),
+        rejectedPhotoIds: photoQuality.rejected.map((photo) => photo.id),
+        warningPhotoIds: photoQuality.warning.map((photo) => photo.id)
+      });
+    } catch (error) {
+      logGenerationError({ userId: user.id, provider: providerName, model: pendingModel, status: "provider_failed", error });
+      throw error;
+    }
 
     const storedImages = realProvider
       ? await persistGeneratedImagesToStorage({
@@ -339,23 +367,32 @@ export async function POST(request: Request) {
       throw usageTxError;
     }
 
-    const { error: imagesError } = await admin.from("generated_images").insert(
-      storedImages.map((image) => ({
+    const imageRowsWithAudit = storedImages.map((image) => ({
         user_id: user.id,
         client_id: image.client_id,
         shoot_id: image.shoot_id,
         file_url: image.file_url,
+        output_url: image.file_url,
         prompt_used: image.prompt_used,
         provider: image.provider,
         model: image.model,
         status: image.status,
+        credits_used: creditsCharged,
+        error_message: null,
         width: image.width,
         height: image.height,
         seed: image.seed,
         cost_estimate: image.cost_estimate,
         is_favorite: false
-      }))
-    );
+      }));
+
+    let { error: imagesError } = await admin.from("generated_images").insert(imageRowsWithAudit);
+
+    if (imagesError?.message?.includes("output_url") || imagesError?.message?.includes("credits_used") || imagesError?.message?.includes("error_message")) {
+      const legacyRows = imageRowsWithAudit.map(({ output_url, credits_used, error_message, ...row }) => row);
+      const fallback = await admin.from("generated_images").insert(legacyRows);
+      imagesError = fallback.error;
+    }
 
     if (imagesError) {
       throw imagesError;
@@ -394,7 +431,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ...result, images: storedImages });
   } catch (error) {
-    logSupabaseError("Supabase error", error);
+    if (isGeminiFriendlyError(error)) {
+      logGenerationError({ userId: refundContext?.userId, provider: "gemini", model: process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image", status: "failed", error });
+    } else {
+      logSupabaseError("Supabase error", error);
+    }
     if (admin && debited && refundContext) {
       await admin
         .from("credits")
@@ -420,7 +461,7 @@ export async function POST(request: Request) {
       await admin.from("generation_logs").update({ status: "failed", error_message: errorMessage }).eq("id", generationLogId);
     }
     const message = error instanceof Error ? error.message : "Nao foi possivel gerar as imagens agora. Tente novamente ou fale com o suporte.";
-    const safeMessage = message.includes("Creditos") || message.includes("autorizacao") ? message : "Nao foi possivel gerar as imagens agora. Tente novamente ou fale com o suporte.";
+    const safeMessage = isGeminiFriendlyError(error) ? friendlyGeminiError : message.includes("Creditos") || message.includes("autorizacao") ? message : "Nao foi possivel gerar as imagens agora. Tente novamente ou fale com o suporte.";
     return NextResponse.json({ error: safeMessage }, { status: 400 });
   }
 }

@@ -22,11 +22,11 @@ export const categories = [
 export const requiredPhotoTypes = [
   { type: "face_neutral", label: "Rosto neutro/serio", description: "Boa luz, rosto nitido, sem filtro forte." },
   { type: "face_smiling", label: "Rosto sorrindo", description: "Sorriso natural para preservar boca, olhos e expressao." },
-  { type: "full_body_front", label: "Corpo inteiro de frente", description: "Corpo visivel para manter proporcoes reais." },
-  { type: "full_body_side", label: "Corpo inteiro de lado", description: "Opcional recomendado para melhorar corpo, bracos e pernas." }
+  { type: "full_body_front", label: "Corpo inteiro de frente", description: "Corpo visivel para manter proporcoes reais." }
 ];
 
 export const optionalPhotoTypes = [
+  { type: "full_body_side", label: "Corpo inteiro de lado", description: "Avancado: melhora bracos, pernas e proporcoes do corpo." },
   { type: "tattoo_arm", label: "Tatuagem no braco", description: "Opcional para preservar tatuagens ou marcas visiveis no braco." },
   { type: "tattoo_leg", label: "Tatuagem na perna", description: "Opcional para preservar tatuagens ou detalhes nas pernas." },
   { type: "back", label: "Costas", description: "Opcional para roupas, cabelo ou detalhes vistos por tras." },
@@ -36,20 +36,20 @@ export const optionalPhotoTypes = [
 ];
 
 export const templates = [
-  { name: "Aniversario Luxo", category: "Aniversario", subtype: "luxo", description: "Decoracao premium, pose elegante e luz editorial.", image: "/assets/landing/template-aniversario.png", credits: 10, popular: true },
+  { name: "Aniversario Luxo", category: "Aniversario", subtype: "luxo", description: "Decoracao premium, pose elegante e luz editorial.", image: "/assets/landing/template-aniversario.png", credits: 10, popular: true, badge: "Mais vendido" },
   { name: "Aniversario Baloes", category: "Aniversario", subtype: "baloes", description: "Cenario festivo realista com baloes e composicao limpa.", image: "/assets/landing/template-aniversario.png", credits: 10 },
   { name: "Aniversario Bolo", category: "Aniversario", subtype: "bolo", description: "Foto de celebracao com bolo, detalhes reais e sorriso natural.", image: "/assets/landing/template-aniversario.png", credits: 10 },
   { name: "Casual Urbano", category: "Casual", subtype: "urbano", description: "Rua, cafe ou parque com energia espontanea e moderna.", image: "/assets/landing/template-casual.png", credits: 10 },
-  { name: "Casual Praia", category: "Casual", subtype: "praia", description: "Lifestyle leve com luz natural, vento e pele realista.", image: "/assets/landing/template-casual.png", credits: 10 },
+  { name: "Casual Praia", category: "Casual", subtype: "praia", description: "Lifestyle leve com luz natural, vento e pele realista.", image: "/assets/landing/template-casual.png", credits: 10, badge: "Bom para WhatsApp" },
   { name: "Casual Cafe", category: "Casual", subtype: "cafe", description: "Foto espontanea em cafeteria, clima leve e comercial.", image: "/assets/landing/template-casual.png", credits: 10 },
   { name: "Praia Lifestyle", category: "Praia", subtype: "lifestyle", description: "Oceano, areia, luz de fim de tarde e corpo proporcional.", image: "/assets/landing/template-praia.png", credits: 10 },
-  { name: "Profissional Premium", category: "Profissional/empresa", subtype: "premium", description: "Retrato confiavel para marca pessoal, empresa ou autoridade.", image: "/assets/landing/template-profissional.png", credits: 10, popular: true },
+  { name: "Profissional Premium", category: "Profissional/empresa", subtype: "premium", description: "Retrato confiavel para marca pessoal, empresa ou autoridade.", image: "/assets/landing/template-profissional.png", credits: 10, popular: true, badge: "Ideal para perfil" },
   { name: "LinkedIn", category: "Profissional/empresa", subtype: "linkedin", description: "Imagem clara, profissional e pronta para perfil e curriculo.", image: "/assets/landing/template-profissional.png", credits: 10 },
   { name: "Casal Editorial", category: "Casal", subtype: "editorial", description: "Quimica natural, contato elegante e composicao emocional.", image: "/assets/landing/template-casal.png", credits: 10 },
   { name: "Gestante Elegante", category: "Gestante", subtype: "estudio", description: "Luz suave, styling delicado e composicao respeitosa.", image: "/assets/landing/template-gestante.png", credits: 10 },
   { name: "Infantil Estudio", category: "Infantil/bebe", subtype: "estudio", description: "Cena infantil delicada, segura e com aparencia fotografica.", image: "/assets/landing/template-infantil.png", credits: 10 },
   { name: "Fitness Academia", category: "Fitness", subtype: "academia", description: "Postura forte, luz atletica e proporcoes naturais.", image: "/assets/landing/template-fitness.png", credits: 10 },
-  { name: "Recriar Referencia", category: "Personalizado", subtype: "referencia", description: "Use quando a cliente mandar uma imagem e pedir algo igual. A IA usa a referencia apenas para pose, roupa, ambiente, luz e composicao, preservando a identidade da cliente.", image: "/assets/landing/gallery-preview.png", credits: 10, popular: true }
+  { name: "Recriar Referencia", category: "Personalizado", subtype: "referencia", description: "Use quando a cliente mandar uma inspiracao e pedir algo igual. A IA usa a referencia apenas para pose, roupa, ambiente, luz e composicao, preservando rosto, corpo, cabelo e idade da cliente.", image: "/assets/landing/gallery-preview.png", credits: 10, popular: true, badge: "Mais usado por clientes" }
 ].map((template, index) => ({ id: `template-${index + 1}`, ...template }));
 
 const now = new Date().toISOString();

@@ -26,7 +26,7 @@ export type PhotoAuditResult = {
   audited_at: string;
 };
 
-const requiredTypes = ["face_neutral", "face_smiling", "full_body_front", "full_body_side"];
+const requiredTypes = ["face_neutral", "face_smiling", "full_body_front"];
 const faceTypes = ["face_neutral", "face_smiling"];
 const bodyTypes = ["full_body_front", "full_body_side"];
 
