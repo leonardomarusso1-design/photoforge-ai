@@ -12,7 +12,8 @@
 
 body {
   margin: 0;
-  background: #07080d;
+  background:
+    linear-gradient(180deg, #080b11 0%, #06080c 42%, #050608 100%);
   color: #f5f7fb;
 }
 
@@ -32,14 +33,14 @@ select {
 }
 
 ::selection {
-  background: rgba(45, 212, 191, .35);
+  background: rgba(244, 213, 141, .32);
 }
 
 .mesh {
   background:
-    radial-gradient(circle at 20% 10%, rgba(139, 92, 246, .16), transparent 28%),
-    radial-gradient(circle at 80% 0%, rgba(45, 212, 191, .14), transparent 24%),
-    linear-gradient(135deg, #07080d 0%, #10121a 48%, #0b1014 100%);
+    linear-gradient(135deg, rgba(244, 213, 141, .08) 0%, transparent 28%),
+    linear-gradient(225deg, rgba(45, 212, 191, .08) 0%, transparent 32%),
+    linear-gradient(135deg, #07090f 0%, #10131b 48%, #080d12 100%);
 }
 
 .photo-tile {
@@ -53,4 +54,22 @@ select {
     radial-gradient(circle at 20% 20%, rgba(255,255,255,.14), transparent 2px),
     radial-gradient(circle at 80% 30%, rgba(255,255,255,.08), transparent 1px),
     repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 1px, transparent 1px 8px);
+}
+
+.premium-scrollbar {
+  scrollbar-color: rgba(244, 213, 141, .42) rgba(255,255,255,.04);
+}
+
+.premium-scrollbar::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.premium-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255,255,255,.04);
+}
+
+.premium-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(244, 213, 141, .34);
+  border-radius: 999px;
 }

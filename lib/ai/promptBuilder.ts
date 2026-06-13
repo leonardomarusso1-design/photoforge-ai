@@ -1,6 +1,6 @@
 import type { Client, ReferencePhoto, Shoot } from "@/lib/types";
 
-export const baseIdentityPrompt = `Use the uploaded client photos only as identity reference. Preserve the real face, facial structure, natural facial asymmetry, body proportions, skin texture, skin tone, hair color, hair length, hairstyle, eyes, nose, mouth, arms, legs and natural features. Do not change the client's identity. Do not change the body shape. Do not change the hair. Do not make the client younger. Do not beautify too much. Do not create a model face. Make the final result look like a real photo taken by a human with a modern smartphone, similar to an iPhone 15 photo, not an AI image. Keep natural imperfections, realistic skin texture, normal human proportions, real shadows and believable lighting. If a reference image is provided, use it only for pose, outfit, scene, lighting and composition. Do not copy the reference person's face, body, age or hair.`;
+export const baseIdentityPrompt = `Uploaded photos are identity photos only. Preserve the real face, facial structure, natural facial asymmetry, body proportions, skin texture, skin tone, hair color, hair length, hairstyle, eyes, nose, mouth, arms, legs and natural features. Do not change the client's identity. Do not change the body shape. Do not change the hair. Do not make the client younger. Do not beautify too much. Do not create a model face. Make the final result look like a real photo taken by a human with a modern smartphone, similar to an iPhone 15 photo, not an AI image. Keep natural imperfections, realistic skin texture, normal human proportions, real shadows and believable lighting.`;
 
 export const over50Prompt = `The client is over 50 years old. Keep the real age visible. Do not rejuvenate. Keep arms, legs, skin texture and body proportions realistic for the client's age.`;
 
@@ -56,7 +56,7 @@ export function buildGeminiImagePrompt(args: {
     `Shoot type: ${args.shootType}. ${templateForShootType(args.shootType)}`,
     args.styleType ? `Style direction: ${args.styleType}. Keep the style photographic and realistic, never illustrative or synthetic.` : "",
     `Input usage: ${args.identityImages.length} uploaded client identity image(s) are provided. Use all of them together to preserve the same real person consistently.`,
-    args.referenceImage ? "A separate reference image is provided. Use it only for pose, outfit, scene, framing, lighting and composition. Do not copy the reference person's face, body, age or hair." : "",
+    args.referenceImage ? "A separate optional reference image is provided. Use it only for pose, outfit, scene, framing, lighting and composition. Do not copy the reference person's face, body, age or hair." : "No optional visual reference image is provided. Use the selected template and written fields for pose, outfit, scene, lighting and composition.",
     args.extraInstructions ? `Extra instructions from the shoot brief: ${args.extraInstructions}` : "",
     "Output: one final realistic photo, no text, no watermark, no logo, no collage, no before/after layout."
   ].filter(Boolean).join("\n\n");

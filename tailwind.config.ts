@@ -9,17 +9,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#07080d",
-        panel: "#10121a",
-        panel2: "#171a24",
-        line: "#262b3a",
+        ink: "#06080c",
+        panel: "#10131b",
+        panel2: "#171b25",
+        line: "#293040",
+        champagne: "#f4d58d",
+        teal: "#2dd4bf",
+        steel: "#90a4bc",
         violet: "#8b5cf6",
         cyan: "#2dd4bf",
         lime: "#a3e635",
         gold: "#f2c94c"
       },
       boxShadow: {
-        premium: "0 24px 80px rgba(0,0,0,.35)"
+        premium: "0 24px 80px rgba(0,0,0,.35)",
+        soft: "0 18px 45px rgba(0,0,0,.24)",
+        glow: "0 0 0 1px rgba(244,213,141,.14), 0 22px 70px rgba(244,213,141,.08)"
       }
     }
   },

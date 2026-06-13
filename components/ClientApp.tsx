@@ -132,6 +132,13 @@ function clientStatusLabel(status: string) {
   return clientStatusLabels[status as ClientStatus] ?? status;
 }
 
+function clientStatusTone(status: string): "default" | "good" | "warn" | "bad" {
+  if (status === "ready" || status === "delivered") return "good";
+  if (status === "cancelled") return "bad";
+  if (status === "waiting_photos" || status === "generating" || status === "review") return "warn";
+  return "default";
+}
+
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -155,12 +162,44 @@ function logSupabaseError(context: string, error: unknown) {
 
 function PageTitle({ title, text, action }: { title: string; text: string; action?: React.ReactNode }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+    <div className="mb-7 overflow-hidden rounded-lg border border-white/[.09] bg-[linear-gradient(135deg,rgba(244,213,141,.12),rgba(16,19,27,.94)_42%,rgba(45,212,191,.06))] p-5 shadow-soft">
+      <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+        <div>
+          <p className="text-xs font-semibold uppercase text-champagne">PhotoForge AI</p>
+          <h1 className="mt-2 max-w-4xl text-3xl font-semibold text-white md:text-4xl">{title}</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-steel">{text}</p>
+        </div>
+        {action ? <div className="flex shrink-0 flex-wrap gap-2">{action}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ title, text, action }: { title: string; text?: string; action?: React.ReactNode }) {
+  return (
+    <div className="mb-4 flex flex-col justify-between gap-3 md:flex-row md:items-end">
       <div>
-        <h1 className="text-3xl font-semibold text-white">{title}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{text}</p>
+        <h2 className="text-xl font-semibold text-white">{title}</h2>
+        {text ? <p className="mt-1 max-w-2xl text-sm leading-6 text-steel">{text}</p> : null}
       </div>
       {action}
+    </div>
+  );
+}
+
+function InfoTile({ label, value, muted }: { label: string; value: React.ReactNode; muted?: boolean }) {
+  return (
+    <div className="rounded-lg border border-white/[.08] bg-ink/55 p-3">
+      <p className="text-[11px] font-semibold uppercase text-steel">{label}</p>
+      <div className={`mt-1 text-sm ${muted ? "text-steel" : "text-white"}`}>{value}</div>
+    </div>
+  );
+}
+
+function Notice({ tone = "info", children }: { tone?: "info" | "warn" | "bad"; children: React.ReactNode }) {
+  return (
+    <div className={`rounded-lg border p-4 text-sm leading-6 ${tone === "info" ? "border-cyan/25 bg-cyan/10 text-slate-200" : tone === "warn" ? "border-champagne/30 bg-champagne/10 text-champagne" : "border-red-400/30 bg-red-400/10 text-red-100"}`}>
+      {children}
     </div>
   );
 }
@@ -400,34 +439,52 @@ export function DashboardPage() {
         : { title: "Pronto para criar o proximo ensaio?", text: "Seu fluxo esta organizado. Comece uma nova entrega quando quiser.", href: "/app/shoots/new", label: "Novo ensaio" };
   return (
     <>
-      <PageTitle title={`Ola, ${firstName(state.profile.name)}. Pronto para criar o proximo ensaio?`} text="Acompanhe clientes, ensaios, creditos e entregas em um painel pensado para operacao diaria." action={<div className="flex flex-wrap gap-2"><Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Gerar novo ensaio</Button><Button href="/app/credits" variant="secondary"><WalletCards className="h-4 w-4" /> Comprar creditos</Button></div>} />
-      <Card className="mb-6 border-cyan/30 bg-cyan/10">
-        <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
-            <StatusBadge tone="good">Comece por aqui</StatusBadge>
-            <h2 className="mt-3 text-2xl font-semibold">Crie seu primeiro ensaio vendavel</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-200">Para gerar sua primeira foto, cadastre uma cliente, envie as fotos certas, escolha um modelo e use seus creditos para gerar.</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {["Cadastrar cliente", "Enviar fotos", "Escolher template", "Revisar prompt", "Gerar imagem", "Entregar para cliente"].map((item) => <StatusBadge key={item}>{item}</StatusBadge>)}
+      <PageTitle title={`Ola, ${firstName(state.profile.name)}. Seu estudio esta pronto.`} text="Acompanhe clientes, ensaios, creditos e entregas em um painel pensado para operacao diaria." action={<><Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Criar novo ensaio</Button><Button href="/app/credits" variant="secondary"><WalletCards className="h-4 w-4" /> Comprar creditos</Button></>} />
+      <div className="mb-6 grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
+        <Card className="border-champagne/35 bg-[linear-gradient(135deg,rgba(244,213,141,.16),rgba(16,19,27,.96)_55%,rgba(45,212,191,.08))] shadow-glow">
+          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+            <div>
+              <StatusBadge tone={lowCredits ? "warn" : "good"}>{lowCredits ? "Saldo baixo" : "Saldo de producao"}</StatusBadge>
+              <div className="mt-4 text-6xl font-semibold text-white">{state.credits.balance}</div>
+              <p className="mt-2 text-sm leading-6 text-steel">creditos disponiveis para novas geracoes</p>
+            </div>
+            <div className="grid gap-2 sm:min-w-44">
+              <Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Criar ensaio</Button>
+              <Button href="/app/credits" variant="secondary">Comprar creditos</Button>
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[420px]">
-            <Button href="/app/shoots/new">Criar novo ensaio</Button>
-            <Button href="/app/templates" variant="secondary">Ver templates</Button>
-            <Button href="/app/credits" variant="secondary">Comprar creditos</Button>
+        </Card>
+        <Card className={`${lowCredits ? "border-champagne/35 bg-champagne/10" : "border-cyan/25 bg-cyan/10"}`}>
+          <StatusBadge tone={lowCredits ? "warn" : "good"}>{lowCredits ? "Atencao" : "Proximo passo"}</StatusBadge>
+          <h2 className="mt-3 text-xl font-semibold">{lowCredits ? "Recarregue antes de prometer novas entregas." : nextStep.title}</h2>
+          <p className="mt-2 text-sm leading-6 text-steel">{lowCredits ? "Voce esta perto de ficar sem creditos. Assim a operacao nao trava quando a cliente aprovar." : nextStep.text}</p>
+          <div className="mt-5 flex flex-wrap gap-2"><Button href={lowCredits ? "/app/credits" : nextStep.href}>{lowCredits ? "Comprar creditos" : nextStep.label}</Button>{!lowCredits ? <Button href="/app/templates" variant="secondary">Ver modelos</Button> : null}</div>
+        </Card>
+      </div>
+      <Card className="mb-6">
+        <div className="grid gap-5 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
+          <div>
+            <StatusBadge tone="warn">Comece por aqui</StatusBadge>
+            <h2 className="mt-3 text-2xl font-semibold">Uma esteira simples para vender fotos IA</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-steel">O fluxo foi desenhado para uma pessoa comum entender rapido: cliente, modelo, fotos e entrega final.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              ["1", "Cadastre a cliente", "Guarde WhatsApp, idade e observacoes importantes."],
+              ["2", "Escolha o modelo", "Use um template pronto ou recrie uma referencia."],
+              ["3", "Gere e entregue", "Revise, use creditos e salve na galeria."]
+            ].map(([step, title, text]) => (
+              <div key={step} className="rounded-lg border border-white/[.08] bg-ink/55 p-4">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-champagne text-sm font-semibold text-ink">{step}</span>
+                <h3 className="mt-4 font-semibold text-white">{title}</h3>
+                <p className="mt-2 text-xs leading-5 text-steel">{text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </Card>
-      <Card className={`mb-6 grid gap-4 md:grid-cols-[1fr_auto] md:items-center ${lowCredits ? "border-gold/35 bg-gold/10" : "border-cyan/25 bg-cyan/10"}`}>
-        <div>
-          <StatusBadge tone={lowCredits ? "warn" : "good"}>{lowCredits ? "Saldo baixo" : "Proximo passo"}</StatusBadge>
-          <h2 className="mt-3 text-xl font-semibold">{nextStep.title}</h2>
-          <p className="mt-2 text-sm text-slate-300">{lowCredits ? "Voce esta perto de ficar sem creditos. Recarregue antes de prometer novas entregas." : nextStep.text}</p>
-        </div>
-        <div className="flex flex-wrap gap-2"><Button href={nextStep.href}>{nextStep.label}</Button>{lowCredits ? <Button href="/app/credits" variant="secondary">Comprar creditos</Button> : null}</div>
-      </Card>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <MetricCard label="Creditos restantes" value={state.credits.balance} Icon={WalletCards} tone="cyan" />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Creditos restantes" value={state.credits.balance} Icon={WalletCards} tone="gold" featured />
         <MetricCard label="Creditos usados" value={results.creditsUsed} Icon={Sparkles} tone="gold" />
         <MetricCard label="Clientes cadastrados" value={activeClients.length} Icon={Users} tone="violet" />
         <MetricCard label="Ensaios criados" value={activeShoots.length} Icon={Camera} tone="lime" />
@@ -493,7 +550,7 @@ function ShootRow({ shoot, client, images = [], shoots = [] }: { shoot: Shoot; c
   const generatedCount = images.filter((image) => image.shoot_id === shoot.id && !image.deleted_at).length;
   const cover = getShootCoverImage(shoot, images, shoots.length ? shoots : [shoot]);
   return (
-    <Link href={withDemoParam(`/app/shoots/${shoot.id}`)} className="group grid gap-4 rounded-lg border border-line bg-panel/85 p-3 shadow-premium transition duration-200 hover:-translate-y-0.5 hover:border-cyan/50 hover:bg-panel sm:grid-cols-[112px_1fr_auto] sm:items-center">
+    <Link href={withDemoParam(`/app/shoots/${shoot.id}`)} className="group grid gap-4 rounded-lg border border-white/[.09] bg-[linear-gradient(135deg,rgba(23,27,37,.92),rgba(9,11,17,.98))] p-3 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:border-champagne/45 sm:grid-cols-[112px_1fr_auto] sm:items-center">
       <div className="relative min-h-32 overflow-hidden rounded-lg border border-white/10 bg-ink">
         {cover.coverUrl ? (
           <>
@@ -510,17 +567,17 @@ function ShootRow({ shoot, client, images = [], shoots = [] }: { shoot: Shoot; c
           <h2 className="truncate text-base font-semibold text-white sm:text-lg">{shoot.title}</h2>
           <StatusBadge tone={shootStatusTone(status)}>{shootStatusLabel(status)}</StatusBadge>
         </div>
-        <p className="mt-1 text-sm text-slate-300">{client?.name ?? "Cliente"} <span className="text-slate-600">-</span> {shoot.category || "Categoria"}</p>
+        <p className="mt-1 text-sm text-steel">{client?.name ?? "Cliente"} <span className="text-slate-600">-</span> {shoot.category || "Categoria"}</p>
         <p className="mt-3 text-xs leading-5 text-slate-500">
           {pluralizeImage(generatedCount)} geradas <span className="text-slate-700">-</span> {shoot.credits_used || 0} creditos usados <span className="text-slate-700">-</span> {formatShootDate(shoot.updated_at || shoot.created_at)}
         </p>
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          {["Revisar", "Gerar", "Refazer", "Baixar", "Marcar entregue"].map((action) => <span key={action} className="rounded-full border border-line bg-white/[.03] px-2.5 py-1 text-slate-300">{action}</span>)}
+          {["Revisar", "Gerar", "Refazer", "Baixar", "Entregar"].map((action) => <span key={action} className="rounded-full border border-white/[.08] bg-white/[.03] px-2.5 py-1 text-steel">{action}</span>)}
         </div>
       </div>
       <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-center">
         <span className="text-xs text-slate-500 sm:hidden">{shootStatusLabel(status)}</span>
-        <span className="inline-flex min-h-9 items-center justify-center rounded-lg border border-cyan/35 bg-cyan/10 px-3 text-sm font-semibold text-cyan transition group-hover:bg-cyan group-hover:text-ink">{shootActionLabel(status)}</span>
+        <span className="inline-flex min-h-9 items-center justify-center rounded-lg border border-champagne/35 bg-champagne/10 px-3 text-sm font-semibold text-champagne transition group-hover:bg-champagne group-hover:text-ink">{shootActionLabel(status)}</span>
       </div>
     </Link>
   );
@@ -536,9 +593,9 @@ export function ClientsPage() {
     .filter((client) => `${client.name} ${client.whatsapp} ${client.email ?? ""} ${client.city ?? ""}`.toLowerCase().includes(search.toLowerCase()));
   return (
     <>
-      <PageTitle title="Clientes" text="Cadastre clientes finais, acompanhe status, receita informada e historico de ensaios." action={<Button href="/app/clients/new"><Plus className="h-4 w-4" /> Novo cliente</Button>} />
-      <Card className="mb-6">
-        <div className="flex items-center gap-3 rounded-lg border border-line bg-ink/70 px-3">
+      <PageTitle title="Clientes" text="Sua carteira de clientes com WhatsApp, autorizacao, historico e proximo ensaio." action={<Button href="/app/clients/new"><Plus className="h-4 w-4" /> Novo cliente</Button>} />
+      <Card className="mb-6 p-4">
+        <div className="flex items-center gap-3 rounded-lg border border-white/[.08] bg-ink/70 px-3">
           <Search className="h-4 w-4 text-slate-500" />
           <input className="min-h-11 w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-600" placeholder="Buscar por nome, WhatsApp, e-mail ou cidade" value={search} onChange={(event) => setSearch(event.target.value)} />
         </div>
@@ -550,28 +607,30 @@ export function ClientsPage() {
           const latestClientShoot = clientShoots[0];
           const authorized = clientShoots.some((shoot) => shoot.consent_confirmed);
           return (
-          <Link href={withDemoParam(`/app/clients/${client.id}`)} key={client.id}>
-            <Card className="h-full transition hover:-translate-y-0.5 hover:border-cyan/60">
-              <div className="flex items-start justify-between gap-3">
+          <Link href={withDemoParam(`/app/clients/${client.id}`)} key={client.id} className="group">
+            <Card className="h-full overflow-hidden transition hover:-translate-y-0.5 hover:border-champagne/45">
+              <div className="flex items-start justify-between gap-3 border-b border-white/[.07] pb-4">
                 <div className="flex gap-3">
                   <ClientAvatar name={client.name} />
                   <div>
                   <h2 className="text-lg font-semibold">{client.name}</h2>
-                  <p className="mt-1 text-sm text-slate-400">{client.whatsapp}</p>
+                  <p className="mt-1 text-sm text-steel">{client.whatsapp}</p>
                   </div>
                 </div>
-                <StatusBadge>{clientStatusLabel(client.status)}</StatusBadge>
+                <StatusBadge tone={clientStatusTone(client.status)}>{clientStatusLabel(client.status)}</StatusBadge>
               </div>
-              <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                <div><p className="text-slate-500">Cidade</p><p>{client.city || "-"}</p></div>
-                <div><p className="text-slate-500">Idade</p><p>{client.age ? `${client.age} anos` : "-"}</p></div>
-                <div><p className="text-slate-500">Receita</p><p>{money(client.total_revenue)}</p></div>
-                <div><p className="text-slate-500">Ensaios</p><p>{clientShoots.length}</p></div>
-                <div><p className="text-slate-500">Autorizacao</p><p>{authorized ? "Registrada" : "Pendente"}</p></div>
-                <div><p className="text-slate-500">Ultimo ensaio</p><p>{latestClientShoot?.title ?? "-"}</p></div>
-                <div><p className="text-slate-500">Atividade</p><p>{new Date(client.updated_at || client.created_at).toLocaleDateString("pt-BR")}</p></div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <InfoTile label="Cidade" value={client.city || "-"} muted={!client.city} />
+                <InfoTile label="Idade" value={client.age ? `${client.age} anos` : "-"} muted={!client.age} />
+                <InfoTile label="Receita" value={money(client.total_revenue)} />
+                <InfoTile label="Ensaios" value={clientShoots.length} />
+                <InfoTile label="Autorizacao" value={authorized ? "Registrada" : "Pendente"} muted={!authorized} />
+                <InfoTile label="Ultimo ensaio" value={latestClientShoot?.title ?? "-"} muted={!latestClientShoot} />
               </div>
-              <div className="mt-5 flex flex-wrap gap-2"><Button variant="ghost">Ver detalhes</Button><span className="inline-flex min-h-10 items-center justify-center rounded-lg border border-cyan/40 bg-cyan/10 px-4 py-2 text-sm font-semibold text-cyan">Criar ensaio</span></div>
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-steel">Atualizada em {new Date(client.updated_at || client.created_at).toLocaleDateString("pt-BR")}</span>
+                <span className="inline-flex min-h-9 items-center justify-center rounded-lg border border-champagne/35 bg-champagne/10 px-3 text-sm font-semibold text-champagne transition group-hover:bg-champagne group-hover:text-ink">Ver detalhes</span>
+              </div>
             </Card>
           </Link>
         );})}
@@ -878,10 +937,10 @@ export function ShootsPage() {
   });
   return (
     <>
-      <PageTitle title="Ensaios" text="Acompanhe seus ensaios, rascunhos e entregas geradas com IA." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Novo ensaio</Button>} />
-      <Card className="mb-6">
+      <PageTitle title="Ensaios" text="Sua fila de producao: rascunhos, fotos pendentes, geracoes e entregas." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Novo ensaio</Button>} />
+      <Card className="mb-6 p-4">
         <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px_auto] lg:items-center">
-          <div className="flex items-center gap-3 rounded-lg border border-line bg-ink/70 px-3">
+          <div className="flex items-center gap-3 rounded-lg border border-white/[.08] bg-ink/70 px-3">
             <Search className="h-4 w-4 text-slate-500" />
             <input className="min-h-11 w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-600" placeholder="Buscar por ensaio ou cliente" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
@@ -893,6 +952,12 @@ export function ShootsPage() {
             {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
           </select>
           <Button href="/app/shoots/new" className="w-full lg:w-auto"><Plus className="h-4 w-4" /> Novo ensaio</Button>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {shootStatusFilterOptions.slice(1, 6).map((option) => {
+            const count = allShoots.filter((shoot) => shoot.status === option.value).length;
+            return <StatusBadge key={option.value} tone={option.value === "completed" ? "good" : option.value === "failed" ? "bad" : "default"}>{option.label}: {count}</StatusBadge>;
+          })}
         </div>
       </Card>
       {allShoots.length === 0 ? (
@@ -1458,14 +1523,14 @@ export function ShootCreatePage() {
 
   return (
     <>
-      <PageTitle title="Criar ensaio" text="Fluxo guiado para cliente, fotos, template, ajustes, consentimento, revisao e resultado." />
-      <div className="mb-5 grid gap-2 md:grid-cols-7">{["Cliente", "Fotos", "Template", "Ajustes", "Consentimento", "Revisao", "Resultado"].map((label, index) => {
+      <PageTitle title="Criar ensaio" text="Uma esteira guiada para cliente, fotos de identidade, modelo, ajustes, consentimento, revisao e resultado." />
+      <div className="premium-scrollbar mb-5 grid gap-2 overflow-x-auto md:grid-cols-7">{["Cliente", "Fotos", "Template", "Ajustes", "Consentimento", "Revisao", "Resultado"].map((label, index) => {
         const current = step === index + 1;
         const done = step > index + 1;
-        return <button key={label} onClick={() => setStep(index + 1)} className={`rounded-lg border px-3 py-3 text-left text-sm transition ${current ? "border-cyan bg-cyan/10 text-cyan" : done ? "border-cyan/30 bg-panel text-white" : "border-line bg-panel text-slate-400 hover:border-white/20"}`}><span className="mr-2 inline-grid h-6 w-6 place-items-center rounded-full bg-white/10 text-xs">{done ? "OK" : index + 1}</span>{label}</button>;
+        return <button key={label} onClick={() => setStep(index + 1)} className={`min-w-36 rounded-lg border px-3 py-3 text-left text-sm transition ${current ? "border-champagne/55 bg-champagne/10 text-white shadow-glow" : done ? "border-cyan/30 bg-cyan/10 text-white" : "border-white/[.08] bg-panel text-steel hover:border-white/20"}`}><span className={`mr-2 inline-grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${current ? "bg-champagne text-ink" : done ? "bg-cyan text-ink" : "bg-white/10 text-steel"}`}>{done ? "OK" : index + 1}</span>{label}</button>;
       })}</div>
-      <Card>
-        {flowError ? <div className="mb-4 rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{flowError}</div> : null}
+      <Card className="border-white/[.1]">
+        {flowError ? <div className="mb-4 rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-100">{flowError}</div> : null}
         {step === 1 && <div className="grid gap-5">
           <div className="grid gap-3 md:grid-cols-2">
             <button type="button" onClick={() => setForm({ ...form, recreate_reference_mode: false })} className={`rounded-lg border p-4 text-left transition ${!form.recreate_reference_mode ? "border-cyan bg-cyan/10" : "border-line bg-ink/60 hover:border-cyan/40"}`}>
@@ -1536,10 +1601,7 @@ function TemplatePickStep({ selectedTemplate, onSelect }: { selectedTemplate: st
   const grouped = ["Aniversario", "Casual", "Profissional/empresa", "Casal", "Praia", "Gestante", "Infantil/bebe", "Fitness", "Personalizado"];
   return (
     <div className="grid gap-5">
-      <div>
-        <h2 className="text-lg font-semibold">Escolha o template do ensaio</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-400">O template complementa o prompt base de identidade. Ele nao substitui as fotos reais da cliente.</p>
-      </div>
+      <SectionTitle title="Escolha o template do ensaio" text="O template complementa o prompt base de identidade. Ele nao substitui as fotos reais da cliente." />
       <div className="grid gap-5">
         {grouped.map((category) => {
           const categoryTemplates = templates.filter((template) => template.category === category);
@@ -1547,17 +1609,17 @@ function TemplatePickStep({ selectedTemplate, onSelect }: { selectedTemplate: st
           return (
             <div key={category}>
               <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">{templateCategoryForShoot(category)}</h3><StatusBadge>{categoryTemplates.length} opcoes</StatusBadge></div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {categoryTemplates.map((template) => {
                   const selected = selectedTemplate === template.id;
                   return (
-                    <button key={template.id} type="button" onClick={() => onSelect(template.id)} className={`overflow-hidden rounded-lg border bg-ink/70 text-left transition hover:-translate-y-0.5 hover:border-cyan/60 ${selected ? "border-cyan shadow-premium" : "border-line"}`}>
-                      <img src={template.image} alt={template.name} className="aspect-[4/3] w-full object-cover" />
+                    <button key={template.id} type="button" onClick={() => onSelect(template.id)} className={`overflow-hidden rounded-lg border bg-ink/70 text-left transition hover:-translate-y-0.5 ${selected ? "border-champagne shadow-glow" : "border-white/[.08] hover:border-cyan/50"}`}>
+                      {templateVisual(template)}
                       <div className="p-3">
                         <div className="flex flex-wrap gap-2"><StatusBadge tone={template.popular ? "good" : "default"}>{template.subtype}</StatusBadge>{template.badge ? <StatusBadge tone={template.name === "Recriar Referencia" ? "warn" : "good"}>{template.badge}</StatusBadge> : null}<StatusBadge tone="warn">{template.credits} creditos</StatusBadge></div>
                         <h4 className="mt-3 font-semibold">{template.name}</h4>
                         <p className="mt-1 text-xs leading-5 text-slate-400">{template.description}</p>
-                        <span className="mt-3 inline-flex text-sm font-semibold text-cyan">{selected ? "Selecionado" : "Criar ensaio com este modelo"}</span>
+                        <span className="mt-3 inline-flex text-sm font-semibold text-champagne">{selected ? "Selecionado" : "Usar modelo"}</span>
                       </div>
                     </button>
                   );
@@ -1623,17 +1685,26 @@ function ReviewStep({ form, client, refs }: { form: Partial<Shoot>; client?: Cli
     ...form
   } as Shoot;
   const prompt = client ? buildPremiumPrompt(previewShoot, client, refs) : "Selecione a cliente para visualizar o prompt.";
+  const requiredCount = refs.filter((ref) => ["face_neutral", "face_smiling", "full_body_front"].includes(ref.type)).length;
+  const optionalCount = refs.length - requiredCount;
+  const credits = Number(form.quantity || 4);
   return (
     <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
       <Card className="bg-ink/60">
-        <h2 className="text-lg font-semibold">Revisao antes de gerar</h2>
-        <div className="mt-4 grid gap-2 text-sm text-slate-300">
-          <p>Cliente: {client?.name ?? "Nao selecionada"}</p>
-          <p>Template/categoria: {form.category || "-"}</p>
-          <p>Fotos enviadas: {refs.length}</p>
-          <p>Modo recriar referencia: {form.recreate_reference_mode ? "ativo" : "desativado"}</p>
+        <SectionTitle title="Revisao antes de gerar" text="Confira identidade, modelo, creditos e consentimento antes de consumir saldo." />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <InfoTile label="Cliente" value={client?.name ?? "Pendente"} muted={!client} />
+          <InfoTile label="Template" value={form.title || form.category || "Pendente"} muted={!form.title && !form.category} />
+          <InfoTile label="Fotos de identidade" value={`${requiredCount}/3 enviadas`} />
+          <InfoTile label="Creditos previstos" value={credits} />
+          <InfoTile label="Roupa" value={form.outfit || "A definir"} muted={!form.outfit} />
+          <InfoTile label="Cenario" value={form.location || "A definir"} muted={!form.location} />
+          <InfoTile label="Pose" value={form.pose || "A definir"} muted={!form.pose} />
+          <InfoTile label="Referencias opcionais" value={optionalCount} muted={optionalCount === 0} />
         </div>
-        <div className="mt-4 rounded-lg border border-line bg-panel/80 p-3 text-xs leading-5 text-slate-400">Confira se roupa, cenario, pose e consentimentos estao corretos. A geracao real so deve acontecer depois desta revisao.</div>
+        <Notice tone={form.recreate_reference_mode ? "warn" : "info"}>
+          {form.recreate_reference_mode ? "Modo recriar referencia ativo: a referencia orienta pose, roupa, cenario, luz e composicao." : "As fotos enviadas serao usadas como identidade, nao como referencia visual opcional."}
+        </Notice>
       </Card>
       <Card className="bg-ink/60">
         <h2 className="text-lg font-semibold">Prompt montado</h2>
@@ -1684,17 +1755,15 @@ function PhotoStep({ refs, previews, onUpload, onRemove }: { refs: ReferencePhot
   return (
     <div className="grid gap-5">
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-4 text-sm leading-6 text-slate-200">As fotos da cliente definem a identidade. A referencia serve apenas para pose, roupa, ambiente, luz e composicao.</div>
-        <div className="rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-gold">Quanto melhor a foto de entrada, melhor sera o resultado final. Use boa luz, rosto nitido, sem filtro forte e corpo visivel.</div>
+        <Notice>As fotos da cliente definem a identidade. A referencia serve apenas para pose, roupa, ambiente, luz e composicao.</Notice>
+        <Notice tone="warn">Use boa luz, rosto nitido, sem filtro forte e corpo visivel. Placeholder visual nao libera geracao.</Notice>
       </div>
       <div>
-        <h2 className="text-lg font-semibold">Obrigatorio</h2>
-        <p className="mt-1 text-sm text-slate-400">Essas fotos ajudam a preservar rosto, sorriso e proporcoes reais.</p>
+        <SectionTitle title="Fotos de identidade obrigatorias" text="Essas fotos preservam rosto, sorriso e proporcoes reais da cliente." />
         <div className="mt-4 grid gap-3 md:grid-cols-2">{requiredPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={refs.find((ref) => ref.type === photo.type)} preview={previews[photo.type]} required onUpload={onUpload} onRemove={onRemove} />)}</div>
       </div>
       <div>
-        <h2 className="text-lg font-semibold">Avancado/opcional</h2>
-        <p className="mt-1 text-sm text-slate-400">Use para melhorar corpo, cabelo, tatuagens, roupa, costas ou uma referencia extra.</p>
+        <SectionTitle title="Referencias opcionais" text="Use para roupa, pose, cabelo, tatuagens, costas ou uma inspiracao extra." />
         <div className="mt-4 grid gap-3 md:grid-cols-2">{optionalPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(refs, photo.type)} preview={previews[photo.type]} onUpload={onUpload} onRemove={onRemove} />)}</div>
       </div>
     </div>
@@ -2275,8 +2344,8 @@ export function GalleryPage() {
 
   return (
     <>
-      <PageTitle title="Galeria" text="Veja imagens por cliente e ensaio, baixe, favorite ou exclua com soft delete." />
-      <Card className="mb-6">
+      <PageTitle title="Galeria" text="Seu portfolio de imagens geradas, com filtros por cliente, categoria e ensaio." />
+      <Card className="mb-6 p-4">
         <div className="grid gap-3 md:grid-cols-3">
           <Field label="Filtrar por cliente"><select className={inputClass} value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); setShootFilter(""); }}><option value="">Todos os clientes</option>{state.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field>
           <Field label="Filtrar por categoria"><select className={inputClass} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option value="">Todas as categorias</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></Field>
@@ -2292,11 +2361,11 @@ export function GalleryPage() {
 function GalleryGrid({ images, title, showProvider = false, clients = [], shoots = [], onPreview, onFavorite, onDelete, onPortfolio, onDelivered }: { images: GeneratedImage[]; title: string; showProvider?: boolean; clients?: Client[]; shoots?: Shoot[]; onPreview?: (image: GeneratedImage) => void; onFavorite?: (image: GeneratedImage) => void; onDelete?: (image: GeneratedImage) => void; onPortfolio?: (image: GeneratedImage) => void; onDelivered?: (image: GeneratedImage) => void }) {
   return (
     <section className="mt-6">
-      <h2 className="mb-4 text-lg font-semibold">{title}</h2>
+      <SectionTitle title={title} text={`${images.length} imagem${images.length === 1 ? "" : "s"} pronta${images.length === 1 ? "" : "s"} para revisar, baixar ou entregar.`} />
       {images.length === 0 ? <EmptyGalleryState /> : <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{images.map((image, index) => {
         const shoot = shoots.find((item) => item.id === image.shoot_id);
         const client = clients.find((item) => item.id === image.client_id);
-        return <Card key={image.id} className="group overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50"><button type="button" className="block w-full" onClick={() => onPreview?.(image)}><img src={image.file_url} alt="Imagem gerada" className="aspect-[3/4] w-full object-cover transition duration-300 group-hover:scale-[1.02]" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=fallback-${image.id}-${index}`; }} /></button><div className="p-3"><div className="flex flex-wrap gap-2">{showProvider ? <StatusBadge tone="good">{image.provider}</StatusBadge> : <StatusBadge tone="good">Imagem gerada</StatusBadge>}<StatusBadge tone="default">{client?.name ?? "Cliente"}</StatusBadge>{shoot?.category ? <StatusBadge tone="default">{shoot.category}</StatusBadge> : null}<StatusBadge tone={shootStatusTone(shoot?.status ?? image.status)}>{shootStatusLabel(shoot?.status ?? image.status)}</StatusBadge>{image.portfolio_authorized ? <StatusBadge tone="good">Portfolio autorizado</StatusBadge> : null}</div><div className="mt-3"><p className="text-xs text-slate-500">{shoot?.title ?? "Ensaio"} - {formatShootDate(image.created_at)} - {shoot?.credits_used ?? image.cost_estimate} creditos</p><div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" title="Favoritar" onClick={() => onFavorite?.(image)}><Heart className={`h-4 w-4 ${image.is_favorite ? "fill-cyan text-cyan" : ""}`} /></Button><Button variant="ghost" title="Baixar" onClick={() => window.open(image.file_url, "_blank")}><Download className="h-4 w-4" /></Button><Button variant="ghost" title="Copiar prompt" onClick={() => navigator.clipboard?.writeText(image.prompt_used)}><Copy className="h-4 w-4" /></Button>{shoot ? <Button variant="ghost" title="Refazer com mesmo prompt" href={`/app/shoots/${shoot.id}`}><RefreshCw className="h-4 w-4" /></Button> : null}<Button variant="ghost" title="Marcar entregue" onClick={() => onDelivered?.(image)}>Entregue</Button><Button variant="ghost" title="Portfolio" onClick={() => onPortfolio?.(image)}>Portfolio</Button><Button variant="ghost" title="Criar imagem de exemplo para WhatsApp" onClick={() => navigator.clipboard?.writeText(`Exemplo de ensaio PhotoForge AI para WhatsApp: ${image.file_url}`)}>Exemplo WhatsApp</Button><Button variant="ghost" title="Excluir" onClick={() => onDelete?.(image)}><Trash2 className="h-4 w-4" /></Button></div></div></div></Card>;
+        return <Card key={image.id} className="group overflow-hidden p-0 hover:-translate-y-0.5 hover:border-champagne/45"><button type="button" className="relative block w-full overflow-hidden" onClick={() => onPreview?.(image)}><img src={image.file_url} alt="Imagem gerada" className="aspect-[3/4] w-full object-cover transition duration-300 group-hover:scale-[1.02]" onError={(event) => { event.currentTarget.src = `/api/placeholder?seed=fallback-${image.id}-${index}`; }} /><div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 transition group-hover:opacity-100"><span className="text-xs font-semibold text-white">Abrir preview</span></div></button><div className="p-4"><div className="flex flex-wrap gap-2">{showProvider ? <StatusBadge tone="good">{image.provider}</StatusBadge> : <StatusBadge tone="good">Imagem gerada</StatusBadge>}<StatusBadge tone="default">{client?.name ?? "Cliente"}</StatusBadge>{shoot?.category ? <StatusBadge tone="default">{shoot.category}</StatusBadge> : null}<StatusBadge tone={shootStatusTone(shoot?.status ?? image.status)}>{shootStatusLabel(shoot?.status ?? image.status)}</StatusBadge>{image.portfolio_authorized ? <StatusBadge tone="good">Portfolio autorizado</StatusBadge> : null}</div><div className="mt-3"><p className="font-semibold text-white">{shoot?.title ?? "Ensaio"}</p><p className="mt-1 text-xs text-steel">{formatShootDate(image.created_at)} - {shoot?.credits_used ?? image.cost_estimate} creditos</p><div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" title="Favoritar" onClick={() => onFavorite?.(image)}><Heart className={`h-4 w-4 ${image.is_favorite ? "fill-cyan text-cyan" : ""}`} /></Button><Button variant="ghost" title="Baixar" onClick={() => window.open(image.file_url, "_blank")}><Download className="h-4 w-4" /></Button><Button variant="ghost" title="Copiar prompt" onClick={() => navigator.clipboard?.writeText(image.prompt_used)}><Copy className="h-4 w-4" /></Button>{shoot ? <Button variant="ghost" title="Refazer com mesmo prompt" href={`/app/shoots/${shoot.id}`}><RefreshCw className="h-4 w-4" /></Button> : null}<Button variant="ghost" title="Marcar entregue" onClick={() => onDelivered?.(image)}>Entregue</Button><Button variant="ghost" title="Portfolio" onClick={() => onPortfolio?.(image)}>Portfolio</Button><Button variant="ghost" title="Criar imagem de exemplo para WhatsApp" onClick={() => navigator.clipboard?.writeText(`Exemplo de ensaio PhotoForge AI para WhatsApp: ${image.file_url}`)}>WhatsApp</Button><Button variant="ghost" title="Excluir" onClick={() => onDelete?.(image)}><Trash2 className="h-4 w-4" /></Button></div></div></div></Card>;
       })}</div>}
     </section>
   );
@@ -2323,17 +2392,101 @@ export function CreditsPage() {
   }
   return (
     <>
-      <PageTitle title="Creditos" text="Use creditos para gerar fotos para clientes e vender seus proprios ensaios." action={<Button onClick={buyCredits}>Comprar creditos</Button>} />
-      {demoMessage ? <div className="mb-6 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">{demoMessage}</div> : null}
-      <Card className="mb-6 grid gap-5 border-cyan/25 bg-cyan/10 md:grid-cols-3">
-        <div><p className="text-sm text-slate-300">Seus creditos</p><div className="mt-2 text-5xl font-semibold">{state.credits.balance}</div><p className="mt-2 text-sm text-slate-400">Saldo disponivel para novas geracoes.</p></div>
-        <div><p className="text-sm text-slate-300">Creditos usados</p><div className="mt-2 text-5xl font-semibold">{state.credits.total_used}</div><p className="mt-2 text-sm text-slate-400">Historico total de consumo.</p></div>
-        <div><p className="text-sm text-slate-300">Plano</p><div className="mt-3"><StatusBadge tone={community ? "good" : "default"}>{community ? "Beneficio da comunidade" : "Preco publico"}</StatusBadge></div><p className="mt-4 text-sm leading-6 text-slate-300">Membros pagam menos por creditos e conseguem melhorar a margem por ensaio vendido.</p></div>
+      <PageTitle title="Creditos" text="Compre saldo para gerar imagens e manter margem previsivel em cada ensaio vendido." action={<Button onClick={buyCredits}>Comprar creditos</Button>} />
+      {demoMessage ? <Notice tone="warn">{demoMessage}</Notice> : null}
+      <Card className="my-6 grid gap-5 border-champagne/30 bg-[linear-gradient(135deg,rgba(244,213,141,.14),rgba(16,19,27,.96)_52%,rgba(45,212,191,.07))] md:grid-cols-3">
+        <div><p className="text-sm text-steel">Saldo atual</p><div className="mt-2 text-6xl font-semibold">{state.credits.balance}</div><p className="mt-2 text-sm text-steel">creditos disponiveis para novas geracoes.</p></div>
+        <div><p className="text-sm text-steel">Creditos usados</p><div className="mt-2 text-5xl font-semibold">{state.credits.total_used}</div><p className="mt-2 text-sm text-steel">Historico total de consumo.</p></div>
+        <div><p className="text-sm text-steel">Plano</p><div className="mt-3"><StatusBadge tone={community ? "good" : "default"}>{community ? "Membro da comunidade" : "Preco publico"}</StatusBadge></div><p className="mt-4 text-sm leading-6 text-steel">Membros da comunidade pagam menos por creditos e melhoram a margem por ensaio vendido.</p></div>
       </Card>
-      {state.credits.balance < state.generationConfig.creditsPerImage ? <div className="mb-6 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Voce nao tem creditos suficientes para gerar agora. Escolha um pacote para continuar.</div> : null}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{packages.map((pack) => <Card key={pack.name} className={`${pack.highlight ? "border-gold/40 bg-gold/10" : "hover:border-cyan/40"}`}><div className="flex flex-wrap items-center gap-2"><StatusBadge tone={pack.highlight ? "warn" : "default"}>{pack.name}</StatusBadge>{pack.highlight ? <StatusBadge tone="warn">pacote recomendado</StatusBadge> : null}{pack.community || community ? <StatusBadge tone="good">beneficio da comunidade</StatusBadge> : null}</div><h2 className="mt-4 text-3xl font-semibold">{pack.credits}</h2><p className="mt-1 text-sm text-slate-400">creditos</p><div className="mt-4 text-sm"><p className="text-slate-300">Preco publico: {money(pack.publicPrice)}</p><p className="mt-1 text-cyan">Preco membro: {money(pack.memberPrice)}</p><p className="mt-1 text-slate-400">Custo aprox. por geracao: {money((community ? pack.memberPrice : pack.publicPrice) / Math.max(pack.credits, 1) * 4)}</p></div><p className="mt-3 min-h-10 text-sm leading-5 text-slate-400">{pack.text}</p><Button className="mt-5 w-full" onClick={buyCredits}>Comprar</Button><p className="mt-3 text-xs text-gold">{isDemoMode() ? "Compra simulada no modo demo" : "Checkout em breve"}</p></Card>)}</div>
-      <Card className="mt-6"><h2 className="text-lg font-semibold">Historico de transacoes</h2><div className="mt-4 grid gap-2">{state.creditTransactions.length === 0 ? <EmptyState title="Nenhuma transacao ainda." text="Quando creditos forem usados ou adicionados, o historico aparece aqui." /> : state.creditTransactions.map((tx) => <div key={tx.id} className="flex justify-between rounded-lg border border-line bg-ink p-3 text-sm"><span>{tx.description}</span><span className={tx.amount < 0 ? "text-red-200" : "text-cyan"}>{tx.amount}</span></div>)}</div></Card>
+      {state.credits.balance < state.generationConfig.creditsPerImage ? <Notice tone="warn">Voce nao tem creditos suficientes para gerar agora. Escolha um pacote para continuar.</Notice> : null}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{packages.map((pack) => <Card key={pack.name} className={`relative overflow-hidden ${pack.highlight ? "border-champagne/45 bg-champagne/10 shadow-glow" : "hover:border-cyan/40"}`}>{pack.highlight ? <div className="absolute right-4 top-4"><StatusBadge tone="warn">Mais escolhido</StatusBadge></div> : null}<div className="flex flex-wrap items-center gap-2"><StatusBadge tone={pack.highlight ? "warn" : "default"}>{pack.name}</StatusBadge>{pack.community || community ? <StatusBadge tone="good">comunidade</StatusBadge> : null}</div><h2 className="mt-5 text-5xl font-semibold">{pack.credits}</h2><p className="mt-1 text-sm text-steel">creditos</p><div className="mt-5 rounded-lg border border-white/[.08] bg-ink/55 p-3 text-sm"><p className="text-champagne">Membro: {money(pack.memberPrice)}</p><p className="mt-1 text-steel">Publico: {money(pack.publicPrice)}</p><p className="mt-1 text-steel">Media por geracao: {money((community ? pack.memberPrice : pack.publicPrice) / Math.max(pack.credits, 1) * 4)}</p></div><p className="mt-3 min-h-12 text-sm leading-5 text-steel">{pack.text}</p><Button className="mt-5 w-full" onClick={buyCredits}>Comprar creditos</Button><p className="mt-3 text-xs text-champagne">{isDemoMode() ? "Compra simulada no modo demo" : "Checkout em breve"}</p></Card>)}</div>
+      <Card className="mt-6"><SectionTitle title="Historico de transacoes" text="Entradas, usos e reembolsos de credito aparecem aqui." /><div className="mt-4 grid gap-2">{state.creditTransactions.length === 0 ? <EmptyState title="Nenhuma transacao ainda." text="Quando creditos forem usados ou adicionados, o historico aparece aqui." /> : state.creditTransactions.map((tx) => <div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/[.08] bg-ink/60 p-3 text-sm"><span>{tx.description}</span><span className={tx.amount < 0 ? "font-semibold text-red-100" : "font-semibold text-cyan"}>{tx.amount}</span></div>)}</div></Card>
     </>
+  );
+}
+
+type TemplateItem = (typeof templates)[number];
+
+const templateFilterOptions = [
+  { value: "all", label: "Todos" },
+  { value: "Aniversario", label: "Aniversario" },
+  { value: "Casual", label: "Casual" },
+  { value: "Praia", label: "Praia" },
+  { value: "Profissional/empresa", label: "Profissional" },
+  { value: "Casal", label: "Casal" },
+  { value: "Gestante", label: "Gestante" },
+  { value: "Infantil/bebe", label: "Infantil" },
+  { value: "Fitness", label: "Fitness" },
+  { value: "special", label: "Especiais" }
+];
+
+function isSpecialTemplate(template: TemplateItem) {
+  return template.name === "Recriar Referencia" || template.name === "Prompt Personalizado";
+}
+
+function templateTags(template: TemplateItem) {
+  return [templateCategoryForShoot(template.category), template.badge, template.subtype, `${template.credits} creditos`].filter(Boolean);
+}
+
+function templateVisual(template: TemplateItem) {
+  const key = template.name.toLowerCase();
+  const palette = key.includes("luxo")
+    ? "from-gold/45 via-red-400/20 to-violet/35"
+    : key.includes("balo")
+      ? "from-cyan/40 via-violet/25 to-white/15"
+      : key.includes("bolo")
+        ? "from-gold/35 via-pink-300/25 to-cyan/15"
+        : key.includes("urbano")
+          ? "from-slate-400/25 via-cyan/25 to-violet/25"
+          : key.includes("cafe")
+            ? "from-gold/25 via-white/15 to-cyan/20"
+            : key.includes("praia") && key.includes("editorial")
+              ? "from-cyan/35 via-white/20 to-violet/30"
+              : key.includes("praia")
+                ? "from-cyan/45 via-blue-300/25 to-gold/25"
+                : key.includes("profissional") || key.includes("linkedin")
+                  ? "from-slate-300/25 via-cyan/25 to-black/30"
+                  : key.includes("casal")
+                    ? "from-violet/35 via-red-300/20 to-gold/20"
+                    : key.includes("gestante")
+                      ? "from-gold/25 via-white/20 to-violet/25"
+                      : key.includes("infantil")
+                        ? "from-cyan/25 via-gold/25 to-white/20"
+                        : key.includes("fitness")
+                          ? "from-lime/35 via-cyan/15 to-black/35"
+                          : key.includes("recriar")
+                            ? "from-violet/45 via-cyan/25 to-gold/20"
+                            : "from-white/20 via-cyan/20 to-violet/25";
+  const label = key.includes("bolo") ? "bolo" : key.includes("balo") ? "baloes" : key.includes("cafe") ? "cafe" : key.includes("praia") ? "praia" : key.includes("recriar") ? "referencia" : key.includes("personalizado") ? "prompt" : templateCategoryForShoot(template.category).toLowerCase();
+  return (
+    <div className="relative aspect-video overflow-hidden rounded-t-lg border-b border-white/10 bg-ink">
+      <div className={`absolute inset-0 bg-gradient-to-br ${palette}`} />
+      <div className="absolute inset-0 photo-noise opacity-60" />
+      <div className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-xs text-white backdrop-blur">{label}</div>
+      <div className="absolute bottom-4 left-4 right-4 grid grid-cols-3 gap-2">
+        <div className="h-14 rounded-lg border border-white/10 bg-white/15" />
+        <div className="h-14 rounded-lg border border-white/10 bg-white/10" />
+        <div className="h-14 rounded-lg border border-white/10 bg-white/20" />
+      </div>
+    </div>
+  );
+}
+
+function TemplateCard({ template, special = false }: { template: TemplateItem; special?: boolean }) {
+  return (
+    <Card className={`overflow-hidden p-0 hover:-translate-y-0.5 ${special ? "border-gold/35 bg-gold/10 hover:border-gold/60" : "hover:border-cyan/50"}`}>
+      {templateVisual(template)}
+      <div className="p-4">
+        <div className="flex flex-wrap gap-1.5">{templateTags(template).map((tag, index) => <StatusBadge key={`${template.id}-${tag}`} tone={index === 1 || special ? "warn" : index === 0 ? "good" : "default"}>{tag}</StatusBadge>)}</div>
+        <h2 className="mt-3 text-base font-semibold">{template.name}</h2>
+        <p className="mt-2 min-h-12 text-xs leading-5 text-slate-400">{template.description}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button href={`/app/shoots/new?template=${template.id}`} className="min-h-9 px-3 py-1.5 text-xs">{special && template.name === "Recriar Referencia" ? "Recriar uma referencia" : special ? "Criar do zero" : "Usar modelo"}</Button>
+          <Button href={`/app/shoots/new?template=${template.id}`} variant="ghost" className="min-h-9 px-3 py-1.5 text-xs">Ver detalhes</Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -2342,30 +2495,42 @@ export function TemplatesPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
-  const categoriesForTemplates = Array.from(new Set(templates.map((template) => template.category)));
-  const visibleTemplates = templates.filter((template) => categoryFilter === "all" || template.category === categoryFilter);
+  const readyTemplates = templates.filter((template) => !isSpecialTemplate(template));
+  const specialTemplates = templates.filter(isSpecialTemplate);
+  const matchesFilter = (template: TemplateItem) => categoryFilter === "all" || (categoryFilter === "special" ? isSpecialTemplate(template) : template.category === categoryFilter);
+  const visibleReady = readyTemplates.filter(matchesFilter);
+  const visibleSpecial = specialTemplates.filter(matchesFilter);
+  const countFor = (value: string) => templates.filter((template) => value === "all" || (value === "special" ? isSpecialTemplate(template) : template.category === value)).length;
   return (
     <>
-      <PageTitle title="Templates" text="Escolha um ponto de partida para vender ensaios mais rapido, sempre preservando a identidade da cliente." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Novo ensaio</Button>} />
-      <Card className="mb-6">
+      <PageTitle title="Templates" text="Uma biblioteca compacta para escolher rapido o melhor modelo antes de ajustar roupa, pose, cenario e detalhes." action={<Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Novo ensaio</Button>} />
+      <Card className="mb-6 p-3">
         <div className="flex gap-2 overflow-x-auto">
-          <Button variant={categoryFilter === "all" ? "primary" : "ghost"} onClick={() => setCategoryFilter("all")}>Todos</Button>
-          {categoriesForTemplates.map((category) => <Button key={category} variant={categoryFilter === category ? "primary" : "ghost"} onClick={() => setCategoryFilter(category)}>{templateCategoryForShoot(category)}</Button>)}
+          {templateFilterOptions.map((option) => <Button key={option.value} variant={categoryFilter === option.value ? "primary" : "ghost"} onClick={() => setCategoryFilter(option.value)}>{option.label} ({countFor(option.value)})</Button>)}
         </div>
       </Card>
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {visibleTemplates.map((template) => (
-          <Card key={template.id} className="overflow-hidden p-0 hover:-translate-y-0.5 hover:border-cyan/50">
-            <img src={template.image} alt={template.name} className="aspect-[4/3] w-full object-cover" />
-            <div className="p-5">
-              <div className="flex flex-wrap gap-2"><StatusBadge tone={template.popular ? "good" : "default"}>{templateCategoryForShoot(template.category)}</StatusBadge>{template.badge ? <StatusBadge tone={template.name === "Recriar Referencia" ? "warn" : "good"}>{template.badge}</StatusBadge> : null}<StatusBadge tone="warn">{template.credits} creditos</StatusBadge><StatusBadge>{template.subtype}</StatusBadge></div>
-              <h2 className="mt-4 text-lg font-semibold">{template.name}</h2>
-              <p className="mt-2 min-h-12 text-sm leading-6 text-slate-400">{template.description}</p>
-              <Button href={`/app/shoots/new?template=${template.id}`} className="mt-5 w-full">Criar ensaio com este modelo</Button>
-            </div>
-          </Card>
-        ))}
-      </div>
+      {visibleReady.length > 0 ? (
+        <section>
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold">Modelos prontos</h2>
+            <p className="mt-1 text-sm text-slate-400">Escolha um cenario pronto e depois ajuste roupa, pose e detalhes antes de gerar.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {visibleReady.map((template) => <TemplateCard key={template.id} template={template} />)}
+          </div>
+        </section>
+      ) : null}
+      {visibleSpecial.length > 0 ? (
+        <section className="mt-8">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold">Modos especiais</h2>
+            <p className="mt-1 text-sm text-slate-400">Use quando quiser partir de uma referencia ou criar algo do zero.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {visibleSpecial.map((template) => <TemplateCard key={template.id} template={template} special />)}
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }
@@ -2385,20 +2550,20 @@ export function ResultsPage() {
   ] as const;
   return (
     <>
-      <PageTitle title="Resultados" text="Lucrômetro simples para acompanhar volume, receita informada e margem estimada." />
+      <PageTitle title="Seu progresso com fotos IA" text="Lucrômetro simples para acompanhar vendas, custo estimado, margem e evolução da operação." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Lucro estimado" value={money(results.profit)} Icon={BarChart3} tone="gold" featured />
         <MetricCard label="Ensaios gerados" value={results.generatedShoots.length} Icon={Camera} tone="cyan" />
         <MetricCard label="Creditos usados" value={results.creditsUsed} Icon={WalletCards} tone="gold" />
         <MetricCard label="Clientes atendidos" value={results.activeClients.length} Icon={Users} tone="violet" />
         <MetricCard label="Ticket medio" value={money(results.averageTicket)} Icon={BarChart3} tone="lime" />
         <MetricCard label="Valor vendido" value={money(results.revenue)} Icon={CheckCircle2} tone="cyan" />
         <MetricCard label="Custo estimado" value={money(results.estimatedCost)} Icon={Sparkles} tone="gold" />
-        <MetricCard label="Lucro estimado" value={money(results.profit)} Icon={BarChart3} tone="lime" />
         <MetricCard label="Meta do mes" value={money(Math.max(1500, results.revenue + 500))} Icon={ShieldCheck} tone="violet" />
       </div>
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
-        <Card><h2 className="text-lg font-semibold">Seu progresso</h2><div className="mt-4 grid gap-2">{achievements.map(([label, done]) => <div key={label} className="flex items-center justify-between rounded-lg border border-line bg-ink p-3 text-sm"><span>{label}</span><StatusBadge tone={done ? "good" : "default"}>{done ? "feito" : "em andamento"}</StatusBadge></div>)}</div></Card>
-        <Card><h2 className="text-lg font-semibold">Ranking</h2><p className="mt-2 text-sm leading-6 text-slate-400">Ranking por comunidade, turma e periodo fica em breve. Por enquanto acompanhe faturamento, creditos usados, custo estimado, lucro e ticket medio.</p><StatusBadge tone="warn">Em breve</StatusBadge></Card>
+        <Card><SectionTitle title="Conquistas" text="Pequenos marcos para acompanhar a evolucao do seu uso." /><div className="mt-4 grid gap-2">{achievements.map(([label, done]) => <div key={label} className="flex items-center justify-between rounded-lg border border-white/[.08] bg-ink/60 p-3 text-sm"><span>{label}</span><StatusBadge tone={done ? "good" : "default"}>{done ? "feito" : "em andamento"}</StatusBadge></div>)}</div></Card>
+        <Card><SectionTitle title="Ranking" text="Comparativos por comunidade, turma e periodo ficam em breve." /><Notice tone="warn">Por enquanto, acompanhe faturamento, creditos usados, custo estimado, lucro e ticket medio.</Notice></Card>
       </div>
     </>
   );
@@ -2416,11 +2581,11 @@ export function HistoryPage() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return (
     <>
-      <PageTitle title="Historico" text="Acompanhe tentativas de geracao, sucessos, erros e creditos cobrados." />
-      <Card className="mb-5"><div className="flex gap-2 overflow-x-auto">{[["all", "Tudo"], ["generations", "Geracoes"], ["credits", "Creditos"], ["clients", "Clientes"], ["errors", "Erros"], ["deliveries", "Entregas"]].map(([value, label]) => <Button key={value} variant={filter === value ? "primary" : "ghost"} onClick={() => setFilter(value)}>{label}</Button>)}</div></Card>
-      <Card className="overflow-x-auto">
+      <PageTitle title="Historico" text="Uma linha do tempo de geracoes, creditos, erros e entregas." />
+      <Card className="mb-5 p-3"><div className="premium-scrollbar flex gap-2 overflow-x-auto">{[["all", "Tudo"], ["generations", "Geracoes"], ["credits", "Creditos"], ["clients", "Clientes"], ["errors", "Erros"], ["deliveries", "Entregas"]].map(([value, label]) => <Button key={value} variant={filter === value ? "primary" : "ghost"} onClick={() => setFilter(value)}>{label}</Button>)}</div></Card>
+      <Card className="premium-scrollbar overflow-x-auto">
         <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="text-slate-400"><tr><th className="p-3">Data</th><th className="p-3">Acao</th><th className="p-3">Cliente</th><th className="p-3">Template</th><th className="p-3">Status</th><th className="p-3">Creditos</th><th className="p-3">Erro/detalhe</th><th className="p-3">Acao</th></tr></thead>
+          <thead className="text-steel"><tr><th className="p-3">Data</th><th className="p-3">Acao</th><th className="p-3">Cliente</th><th className="p-3">Template</th><th className="p-3">Status</th><th className="p-3">Creditos</th><th className="p-3">Erro/detalhe</th><th className="p-3">Acao</th></tr></thead>
           <tbody>{rows.length === 0 ? <tr><td className="p-4 text-slate-400" colSpan={8}>Nenhum item encontrado neste filtro.</td></tr> : rows.map((row) => {
             if ("tx" in row) return <tr key={row.tx.id} className="border-t border-line"><td className="p-3">{formatShootDate(row.tx.created_at)}</td><td className="p-3">Credito</td><td className="p-3">-</td><td className="p-3">-</td><td className="p-3"><StatusBadge tone={row.tx.amount < 0 ? "warn" : "good"}>{row.tx.type}</StatusBadge></td><td className="p-3">{row.tx.amount}</td><td className="p-3 text-slate-400">{row.tx.description}</td><td className="p-3">-</td></tr>;
             const shoot = state.shoots.find((item) => item.id === row.log.shoot_id);
@@ -2496,14 +2661,14 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageTitle title="Configuracoes" text="Dados da conta, plano atual, preferencias e politicas de autorizacao." />
-      {isDemoMode() ? <div className="mb-5 rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">Voce esta no modo demo. Nenhuma compra ou geracao real sera cobrada.</div> : null}
+      <PageTitle title="Configuracoes" text="Conta, plano, preferencias de geracao, autorizacao de imagem, suporte e seguranca." />
+      {isDemoMode() ? <div className="mb-5"><Notice tone="warn">Voce esta no modo demo. Nenhuma compra ou geracao real sera cobrada.</Notice></div> : null}
       <div className="grid gap-5 lg:grid-cols-[1fr_.8fr]">
         <Card>
-          <h2 className="text-lg font-semibold">Perfil</h2>
+          <SectionTitle title="Conta" text="Dados principais do perfil usado na operacao." />
           {profileError ? <div className="mt-4 rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{profileError}</div> : null}
           <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
-            {state.profile.avatar_url ? <img src={state.profile.avatar_url} alt={state.profile.name} className="h-24 w-24 rounded-full border border-line object-cover" /> : <div className="grid h-24 w-24 place-items-center rounded-full border border-line bg-gradient-to-br from-cyan/80 to-violet/80 text-2xl font-semibold text-white">{userInitials(state.profile.name)}</div>}
+            {state.profile.avatar_url ? <img src={state.profile.avatar_url} alt={state.profile.name} className="h-24 w-24 rounded-full border border-white/10 object-cover" /> : <div className="grid h-24 w-24 place-items-center rounded-full border border-champagne/25 bg-gradient-to-br from-champagne via-cyan to-violet text-2xl font-semibold text-ink">{userInitials(state.profile.name)}</div>}
             <div className="grid gap-3">
               <div>
                 <p className="font-semibold text-white">{state.profile.name}</p>
@@ -2529,9 +2694,9 @@ export function SettingsPage() {
           </div>
         </Card>
         <div className="grid gap-5">
-          <Card><h2 className="text-lg font-semibold">Preferencias de geracao</h2><div className="mt-4 grid gap-2 text-sm text-slate-300"><p>Provider ativo: {state.generationConfig.effectiveProvider}</p><p>Creditos por imagem: {state.generationConfig.creditsPerImage}</p><p>Quantidades: {quantitySelectOptions(state).join(", ")}</p></div></Card>
-          <Card><h2 className="text-lg font-semibold">Politica de autorizacao</h2><p className="mt-3 text-sm leading-6 text-slate-400">Gere imagens apenas com consentimento da cliente. Portfolio, WhatsApp e anuncios devem respeitar as marcacoes do ensaio.</p><Button href="/image-policy" className="mt-5" variant="secondary">Ver politica de imagem</Button></Card>
-          <Card><h2 className="text-lg font-semibold">Suporte e seguranca</h2><p className="mt-3 text-sm leading-6 text-slate-400">WhatsApp de suporte: +55 11 90000-0000. Leia tambem os termos de uso antes de vender ensaios para clientes.</p><div className="mt-5 flex flex-wrap gap-2"><Button href="/app/support" variant="secondary">Falar com suporte</Button><Button href="/terms" variant="secondary">Termos de uso</Button><Button href="/" variant="ghost">Sair</Button></div></Card>
+          <Card><SectionTitle title="Preferencias de geracao" text="Configuracoes visiveis da operacao atual." /><div className="grid gap-3"><InfoTile label="Provider ativo" value={state.generationConfig.effectiveProvider} /><InfoTile label="Creditos por imagem" value={state.generationConfig.creditsPerImage} /><InfoTile label="Quantidades" value={quantitySelectOptions(state).join(", ")} /></div></Card>
+          <Card><SectionTitle title="Autorizacao de imagem" text="Regras de uso interno, portfolio, WhatsApp e anuncios." /><p className="text-sm leading-6 text-steel">Gere imagens apenas com consentimento da cliente. Portfolio, WhatsApp e anuncios devem respeitar as marcacoes do ensaio.</p><Button href="/image-policy" className="mt-5" variant="secondary">Ver politica de imagem</Button></Card>
+          <Card><SectionTitle title="Suporte e seguranca" text="Ajuda rapida, termos e canais oficiais." /><p className="text-sm leading-6 text-steel">WhatsApp de suporte: +55 11 90000-0000. Leia tambem os termos de uso antes de vender ensaios para clientes.</p><div className="mt-5 flex flex-wrap gap-2"><Button href="/app/support" variant="secondary">Falar com suporte</Button><Button href="/terms" variant="secondary">Termos de uso</Button><Button href="/" variant="ghost">Sair</Button></div></Card>
         </div>
       </div>
     </>
@@ -2546,7 +2711,28 @@ export function SupportPage() {
     ["Conta", "Se nao conseguir entrar, faca logout e login novamente ou revise o e-mail usado."],
     ["Pagamento", "Compra automatica de creditos ainda esta em preparacao."]
   ];
-  return <><PageTitle title="Suporte" text="Encontre respostas rapidas para problemas comuns de conta, upload, creditos e geracao." action={<Button href="mailto:suporte@photoforge.ai" variant="secondary"><Mail className="h-4 w-4" /> E-mail</Button>} /><div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><Card><MessageCircle className="h-8 w-8 text-cyan" /><h2 className="mt-4 text-lg font-semibold">Precisa de ajuda?</h2><p className="mt-2 text-sm leading-6 text-slate-400">Use os atalhos abaixo para seguir o fluxo ou falar com suporte. Descreva cliente, ensaio e mensagem de erro quando houver.</p><div className="mt-5 grid gap-3"><Button href="https://wa.me/5511900000000" variant="secondary">Falar no WhatsApp</Button><Button href="/app/templates" variant="secondary">Ver tutorial rapido</Button><Button href="/app/shoots/new">Criar novo ensaio</Button><Button href="/app/credits" variant="secondary">Comprar creditos</Button><Button href="/image-policy" variant="ghost">Guia de fotos boas</Button></div></Card><div className="grid gap-3">{faqs.map(([title, text]) => <Card key={title}><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{text}</p></Card>)}</div></div></>;
+  return (
+    <>
+      <PageTitle title="Suporte" text="Respostas rapidas para conta, upload, creditos, geracao e entrega." action={<Button href="mailto:suporte@photoforge.ai" variant="secondary"><Mail className="h-4 w-4" /> E-mail</Button>} />
+      <div className="grid gap-5 lg:grid-cols-[.85fr_1.15fr]">
+        <Card className="border-cyan/25 bg-cyan/10">
+          <MessageCircle className="h-8 w-8 text-cyan" />
+          <h2 className="mt-4 text-xl font-semibold">Precisa de ajuda?</h2>
+          <p className="mt-2 text-sm leading-6 text-steel">Use os atalhos abaixo para seguir o fluxo ou falar com suporte. Descreva cliente, ensaio e mensagem de erro quando houver.</p>
+          <div className="mt-5 grid gap-3">
+            <Button href="https://wa.me/5511900000000" variant="secondary">Falar no WhatsApp</Button>
+            <Button href="/app/templates" variant="secondary">Tutorial rapido</Button>
+            <Button href="/image-policy" variant="secondary">Guia de fotos boas</Button>
+            <Button href="/app/shoots/new">Criar novo ensaio</Button>
+            <Button href="/app/credits" variant="ghost">Comprar creditos</Button>
+          </div>
+        </Card>
+        <div className="grid gap-3 md:grid-cols-2">
+          {faqs.map(([title, text]) => <Card key={title} className="hover:-translate-y-0.5 hover:border-champagne/35"><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-steel">{text}</p></Card>)}
+        </div>
+      </div>
+    </>
+  );
 }
 
 export function AdminPage({ section = "overview" }: { section?: string }) {

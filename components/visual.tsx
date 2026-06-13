@@ -190,14 +190,14 @@ export function VisualStepCard({ title, text, children }: { title: string; text:
 
 export function UploadVisualCard({ title, text, complete, preview, kind = "portrait", children }: { title: string; text: string; complete?: boolean; preview?: string; kind?: PlaceholderKind; children?: React.ReactNode }) {
   return (
-    <div className={clsx("rounded-lg border p-4 transition hover:border-cyan/40", complete ? "border-cyan/40 bg-cyan/10" : "border-line bg-ink/50")}>
-      <div className="grid gap-4 sm:grid-cols-[150px_1fr]">
-        {preview ? <img src={preview} alt={title} className="aspect-[4/5] w-full rounded-lg border border-line object-cover" /> : <EditorialImagePlaceholder kind={kind} label={complete ? "Enviada" : "Pendente"} className="aspect-[4/5]" />}
+    <div className={clsx("rounded-lg border p-4 transition hover:-translate-y-0.5", complete ? "border-cyan/35 bg-cyan/10 shadow-soft" : "border-white/[.08] bg-ink/55 hover:border-champagne/35")}>
+      <div className="grid gap-4 sm:grid-cols-[136px_1fr]">
+        {preview ? <img src={preview} alt={title} className="aspect-[4/5] w-full rounded-lg border border-white/10 object-cover" /> : <EditorialImagePlaceholder kind={kind} label={complete ? "Enviada" : "Pendente"} className="aspect-[4/5]" />}
         <div>
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-medium text-white">{title}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-400">{text}</p>
+              <p className="mt-1 text-xs leading-5 text-steel">{text}</p>
             </div>
             <StatusBadge tone={complete ? "good" : "warn"}>{complete ? "Enviada" : "Pendente"}</StatusBadge>
           </div>
