@@ -5,6 +5,7 @@ export const REAL_IMAGE_QUANTITIES: GenerationQuantity[] = [1, 2, 4];
 
 export function normalizeProviderName(provider?: string) {
   if (provider === "gemini" || provider === "google_gemini" || provider === "gemini_image") return "gemini";
+  if (provider === "gemini_pro" || provider === "nano_banana_pro" || provider === "gemini-3-pro-image") return "gemini_pro";
   if (provider === "replicate" || provider === "replicate_flux" || provider === "flux_kontext_pro") return "replicate_flux";
   return "mock";
 }
@@ -13,8 +14,8 @@ export function isRealProvider(provider?: string) {
   return normalizeProviderName(provider) !== "mock";
 }
 
-export function creditsPerImageForProvider(provider?: string) {
-  return isRealProvider(provider) ? 10 : 1;
+export function creditsPerImageForProvider(_provider?: string) {
+  return 1;
 }
 
 export function quantityOptionsForProvider(provider?: string) {

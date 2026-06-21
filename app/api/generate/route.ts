@@ -257,7 +257,9 @@ export async function POST(request: Request) {
     }
 
     const pendingModel = providerName === "gemini"
-      ? process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image"
+      ? process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview"
+      : providerName === "gemini_pro"
+      ? process.env.GEMINI_PRO_IMAGE_MODEL || "gemini-3-pro-image-preview"
       : realProvider ? "black-forest-labs/flux-kontext-pro" : "mock-v1";
 
     const { data: pendingLog, error: pendingLogError } = await admin
@@ -284,7 +286,7 @@ export async function POST(request: Request) {
         },
         status: "pending",
         credits_charged: 0,
-        cost_estimate: providerName === "replicate_flux" ? trustedShoot.quantity * 0.04 : 0
+        cost_estimate: providerName === "replicate_flux" ? trustedShoot.quantity * 0.04 : providerName === "gemini_pro" ? trustedShoot.quantity * 0.134 : 0
       })
       .select("id")
       .single();
@@ -432,7 +434,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ...result, images: storedImages });
   } catch (error) {
     if (isGeminiFriendlyError(error)) {
-      logGenerationError({ userId: refundContext?.userId, provider: "gemini", model: process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image", status: "failed", error });
+      logGenerationError({ userId: refundContext?.userId, provider: "gemini", model: process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview", status: "failed", error });
     } else {
       logSupabaseError("Supabase error", error);
     }

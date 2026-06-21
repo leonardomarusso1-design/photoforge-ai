@@ -10,18 +10,18 @@ type GeminiResponsePart = {
   };
 };
 
-export const geminiProvider: ImageProvider = {
-  name: "gemini",
+export const geminiProProvider: ImageProvider = {
+  name: "gemini_pro",
   async generate(input) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY is not configured.");
     }
     if (input.referenceImages.length === 0) {
-      throw new Error("Gemini requires at least one uploaded identity image.");
+      throw new Error("Gemini Pro requires at least one uploaded identity image.");
     }
 
-    const model = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
+    const model = process.env.GEMINI_PRO_IMAGE_MODEL || "gemini-3-pro-image-preview";
     const ai = new GoogleGenAI({ apiKey });
     const now = new Date().toISOString();
     const images: GeneratedImage[] = [];
@@ -48,23 +48,23 @@ export const geminiProvider: ImageProvider = {
       const responseParts = (response.candidates?.[0]?.content?.parts ?? []) as GeminiResponsePart[];
       const imagePart = responseParts.find((part) => part.inlineData?.data);
       if (!imagePart || !("inlineData" in imagePart) || !imagePart.inlineData?.data) {
-        throw new Error("Gemini did not return an image.");
+        throw new Error("Gemini Pro did not return an image.");
       }
 
       images.push({
-        id: `gemini-${Date.now()}-${index}`,
+        id: `gemini-pro-${Date.now()}-${index}`,
         user_id: input.userId,
         client_id: input.clientId,
         shoot_id: input.shootId,
         file_url: `data:${imagePart.inlineData.mimeType || "image/png"};base64,${imagePart.inlineData.data}`,
         prompt_used: input.prompt,
-        provider: "gemini",
+        provider: "gemini_pro",
         model,
         status: "completed",
         width: 1024,
         height: 1024,
         seed: 0,
-        cost_estimate: 0,
+        cost_estimate: 0.134,
         is_favorite: false,
         created_at: now
       });
@@ -76,10 +76,10 @@ export const geminiProvider: ImageProvider = {
 
     return {
       images,
-      provider: "gemini",
+      provider: "gemini_pro",
       model,
       rawResponse: rawResponses,
-      costEstimate: 0
+      costEstimate: input.imageCount * 0.134
     };
   }
 };
@@ -96,7 +96,7 @@ async function fetchImageAsInlineData(imageUrl: string) {
 
   const response = await fetch(imageUrl);
   if (!response.ok) {
-    throw new Error(`Could not load reference image for Gemini: ${response.status}`);
+    throw new Error(`Could not load reference image for Gemini Pro: ${response.status}`);
   }
   const contentType = response.headers.get("content-type") || "image/jpeg";
   if (!contentType.startsWith("image/")) {

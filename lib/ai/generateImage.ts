@@ -2,6 +2,7 @@ import { buildCompositionGoal, buildPremiumPrompt, defaultNegativePrompt } from 
 import { buildGeminiPromptFromShoot } from "@/lib/ai/promptBuilder";
 import { creditsPerImageForProvider, imageQuantityError, isRealProvider, isValidImageQuantity, normalizeProviderName } from "@/lib/ai/providerRules";
 import { geminiProvider } from "@/lib/ai/providers/geminiProvider";
+import { geminiProProvider } from "@/lib/ai/providers/geminiProProvider";
 import { mockProvider } from "@/lib/ai/providers/mockProvider";
 import { replicateFluxProvider } from "@/lib/ai/providers/replicateFluxProvider";
 import type { ImageProvider } from "@/lib/ai/providers/base";
@@ -10,6 +11,7 @@ export { creditsPerImageForProvider, isRealProvider, normalizeProviderName };
 
 function selectProvider(providerName: string): ImageProvider {
   if (normalizeProviderName(providerName) === "gemini") return geminiProvider;
+  if (normalizeProviderName(providerName) === "gemini_pro") return geminiProProvider;
   if (normalizeProviderName(providerName) === "replicate_flux") return replicateFluxProvider;
   return mockProvider;
 }
@@ -49,7 +51,7 @@ export async function generateImagesWithProvider(args: {
   if (args.credits.balance < creditCost) {
     throw new Error("Creditos insuficientes.");
   }
-  const prompt = providerName === "gemini"
+  const prompt = (providerName === "gemini" || providerName === "gemini_pro")
     ? buildGeminiPromptFromShoot(args.shoot, args.client, args.referencePhotos)
     : buildPremiumPrompt(args.shoot, args.client, args.referencePhotos);
   const compositionGoal = buildCompositionGoal(args.shoot);
