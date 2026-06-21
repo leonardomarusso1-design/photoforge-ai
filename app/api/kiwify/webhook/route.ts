@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { resolvePlan } from "@/lib/kiwify/plans";
+import { sendWelcomeEmail } from "@/lib/email/resend";
 
 function logSupabaseError(context: string, error: unknown) {
   if (!error) return;
@@ -128,6 +129,18 @@ export async function POST(request: Request) {
     if (txError) {
       logSupabaseError("Kiwify webhook transaction insert", txError);
       return NextResponse.json({ error: "Database error" }, { status: 500 });
+    }
+
+    try {
+      await sendWelcomeEmail({
+        to: Customer.email,
+        name: Customer.full_name || Customer.email,
+        planName: plan.name,
+        isSubscription: plan.isSubscription,
+        credits: plan.credits
+      });
+    } catch (emailError) {
+      console.error("Kiwify webhook: email failed (credit already applied)", { order_id, error: emailError });
     }
 
     return NextResponse.json({ ok: true, credited: plan.credits });
