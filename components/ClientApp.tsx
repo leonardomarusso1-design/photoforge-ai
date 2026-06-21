@@ -14,6 +14,7 @@ import { demoUserId, isDemoMode, withDemoParam } from "@/lib/demoMode";
 import { loadState as loadDemoState, saveState as saveDemoState, uid } from "@/lib/demoStore";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentAuthUser, getCurrentUserId } from "@/lib/supabase/currentUser";
+import { plans } from "@/lib/kiwify/plans";
 
 const defaultGenerationConfig: DemoState["generationConfig"] = {
   provider: "mock",
@@ -2376,32 +2377,87 @@ export function CreditsPage() {
   const [demoMessage, setDemoMessage] = useState("");
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
-  const community = isCommunityPlan(state.profile.plan_type);
-  const packages = [
-    { name: "Primeiro pacote", credits: 25, publicPrice: 37, memberPrice: 27, text: "Para testar ofertas e entregar os primeiros ensaios." },
-    { name: "Mais vendido", credits: 75, publicPrice: 97, memberPrice: 67, text: "Melhor equilibrio para alunos vendendo toda semana.", highlight: true },
-    { name: "Escala", credits: 150, publicPrice: 177, memberPrice: 127, text: "Para vender pacotes recorrentes com margem previsivel." },
-    { name: "Producao", credits: 300, publicPrice: 297, memberPrice: 197, text: "Para operacao com volume e clientes recorrentes.", community: true }
-  ];
-  function buyCredits() {
+  const balance = state.credits.balance;
+  const lowCredits = balance < state.generationConfig.creditsPerImage;
+
+  function buildCheckoutUrl(base: string) {
+    if (isDemoMode()) return "#";
+    const url = new URL(base);
+    if (state!.profile.email) url.searchParams.set("email", state!.profile.email);
+    if (state!.profile.name) url.searchParams.set("name", state!.profile.name);
+    return url.toString();
+  }
+
+  function handleBuy(plan: (typeof plans)[number]) {
     if (isDemoMode()) {
       setDemoMessage("Compra simulada no modo demo.");
       return;
     }
-    setDemoMessage("Checkout real ainda nao esta conectado.");
+    window.open(buildCheckoutUrl(plan.checkoutUrl), "_blank", "noopener,noreferrer");
   }
+
   return (
     <>
-      <PageTitle title="Creditos" text="Compre saldo para gerar imagens e manter margem previsivel em cada ensaio vendido." action={<Button onClick={buyCredits}>Comprar creditos</Button>} />
-      {demoMessage ? <Notice tone="warn">{demoMessage}</Notice> : null}
+      <PageTitle title="Creditos" text="Compre creditos para gerar imagens profissionais com IA." />
+      {demoMessage ? <div className="mb-4"><Notice tone="warn">{demoMessage}</Notice></div> : null}
+      {lowCredits ? (
+        <div className="mb-4">
+          <Notice tone="warn">
+            {balance === 0
+              ? "Voce nao tem creditos. Escolha um plano abaixo para comecar a gerar."
+              : "Creditos insuficientes para gerar. Escolha um plano para continuar."}
+          </Notice>
+        </div>
+      ) : null}
       <Card className="my-6 grid gap-5 border-champagne/30 bg-[linear-gradient(135deg,rgba(244,213,141,.14),rgba(16,19,27,.96)_52%,rgba(45,212,191,.07))] md:grid-cols-3">
-        <div><p className="text-sm text-steel">Saldo atual</p><div className="mt-2 text-6xl font-semibold">{state.credits.balance}</div><p className="mt-2 text-sm text-steel">creditos disponiveis para novas geracoes.</p></div>
-        <div><p className="text-sm text-steel">Creditos usados</p><div className="mt-2 text-5xl font-semibold">{state.credits.total_used}</div><p className="mt-2 text-sm text-steel">Historico total de consumo.</p></div>
-        <div><p className="text-sm text-steel">Plano</p><div className="mt-3"><StatusBadge tone={community ? "good" : "default"}>{community ? "Membro da comunidade" : "Preco publico"}</StatusBadge></div><p className="mt-4 text-sm leading-6 text-steel">Membros da comunidade pagam menos por creditos e melhoram a margem por ensaio vendido.</p></div>
+        <div>
+          <p className="text-sm text-steel">Saldo atual</p>
+          <div className={`mt-2 text-6xl font-semibold ${balance === 0 ? "text-red-100" : ""}`}>{balance}</div>
+          <p className="mt-2 text-sm text-steel">creditos disponiveis para novas geracoes.</p>
+        </div>
+        <div>
+          <p className="text-sm text-steel">Creditos usados</p>
+          <div className="mt-2 text-5xl font-semibold">{state.credits.total_used}</div>
+          <p className="mt-2 text-sm text-steel">Historico total de consumo.</p>
+        </div>
+        <div>
+          <p className="text-sm text-steel">Total comprado</p>
+          <div className="mt-2 text-5xl font-semibold">{state.credits.total_purchased}</div>
+          <p className="mt-2 text-sm text-steel">Creditos adquiridos desde o inicio.</p>
+        </div>
       </Card>
-      {state.credits.balance < state.generationConfig.creditsPerImage ? <Notice tone="warn">Voce nao tem creditos suficientes para gerar agora. Escolha um pacote para continuar.</Notice> : null}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{packages.map((pack) => <Card key={pack.name} className={`relative overflow-hidden ${pack.highlight ? "border-champagne/45 bg-champagne/10 shadow-glow" : "hover:border-cyan/40"}`}>{pack.highlight ? <div className="absolute right-4 top-4"><StatusBadge tone="warn">Mais escolhido</StatusBadge></div> : null}<div className="flex flex-wrap items-center gap-2"><StatusBadge tone={pack.highlight ? "warn" : "default"}>{pack.name}</StatusBadge>{pack.community || community ? <StatusBadge tone="good">comunidade</StatusBadge> : null}</div><h2 className="mt-5 text-5xl font-semibold">{pack.credits}</h2><p className="mt-1 text-sm text-steel">creditos</p><div className="mt-5 rounded-lg border border-white/[.08] bg-ink/55 p-3 text-sm"><p className="text-champagne">Membro: {money(pack.memberPrice)}</p><p className="mt-1 text-steel">Publico: {money(pack.publicPrice)}</p><p className="mt-1 text-steel">Media por geracao: {money((community ? pack.memberPrice : pack.publicPrice) / Math.max(pack.credits, 1) * 4)}</p></div><p className="mt-3 min-h-12 text-sm leading-5 text-steel">{pack.text}</p><Button className="mt-5 w-full" onClick={buyCredits}>Comprar creditos</Button><p className="mt-3 text-xs text-champagne">{isDemoMode() ? "Compra simulada no modo demo" : "Checkout em breve"}</p></Card>)}</div>
-      <Card className="mt-6"><SectionTitle title="Historico de transacoes" text="Entradas, usos e reembolsos de credito aparecem aqui." /><div className="mt-4 grid gap-2">{state.creditTransactions.length === 0 ? <EmptyState title="Nenhuma transacao ainda." text="Quando creditos forem usados ou adicionados, o historico aparece aqui." /> : state.creditTransactions.map((tx) => <div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/[.08] bg-ink/60 p-3 text-sm"><span>{tx.description}</span><span className={tx.amount < 0 ? "font-semibold text-red-100" : "font-semibold text-cyan"}>{tx.amount}</span></div>)}</div></Card>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {plans.map((plan) => (
+          <Card key={plan.name} className={`flex flex-col hover:border-cyan/40 ${plan.isSubscription ? "border-champagne/35" : ""}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge tone={plan.isSubscription ? "warn" : "default"}>
+                {plan.isSubscription ? "Assinatura mensal" : "Avulso"}
+              </StatusBadge>
+            </div>
+            <h2 className="mt-4 text-xl font-semibold">{plan.name}</h2>
+            <div className="mt-4 text-5xl font-semibold">{plan.credits}</div>
+            <p className="mt-1 text-sm text-steel">creditos inclusos</p>
+            <Button className="mt-6 w-full" onClick={() => handleBuy(plan)}>
+              Comprar
+            </Button>
+          </Card>
+        ))}
+      </div>
+      <Card className="mt-6">
+        <SectionTitle title="Historico de transacoes" text="Entradas, usos e reembolsos de credito aparecem aqui." />
+        <div className="mt-4 grid gap-2">
+          {state.creditTransactions.length === 0 ? (
+            <EmptyState title="Nenhuma transacao ainda." text="Quando creditos forem usados ou adicionados, o historico aparece aqui." />
+          ) : (
+            state.creditTransactions.map((tx) => (
+              <div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/[.08] bg-ink/60 p-3 text-sm">
+                <span>{tx.description}</span>
+                <span className={tx.amount < 0 ? "font-semibold text-red-100" : "font-semibold text-cyan"}>{tx.amount}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </Card>
     </>
   );
 }
