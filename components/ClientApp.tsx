@@ -47,11 +47,14 @@ function useDemoState() {
         body: JSON.stringify({ userId, email: user.email, name: user.user_metadata?.name })
       });
 
-      const [profileRes, clientsRes, shootsRes, refsRes, imagesRes, creditsRes, txRes, logsRes] = await Promise.all([
+      const refsRes = await supabase.from("reference_photos").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+      console.log("REFS ERROR:", JSON.stringify(refsRes.error));
+      console.log("REFS DATA:", refsRes.data?.length);
+
+      const [profileRes, clientsRes, shootsRes, imagesRes, creditsRes, txRes, logsRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("clients").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.from("shoots").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-        supabase.from("reference_photos").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.from("generated_images").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.from("credits").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("credit_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
