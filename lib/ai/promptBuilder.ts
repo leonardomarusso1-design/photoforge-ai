@@ -87,10 +87,13 @@ export function buildGeminiPromptFromShoot(shoot: Shoot, client: Client, referen
       age: client.age,
       extraInstructions: shoot.free_notes
     }),
+    "Before generating, mentally describe the exact person in the reference photos: their specific face shape, exact skin tone, exact hair color and style, exact body proportions, exact weight and build. Generate THAT specific person, not a similar one.",
     shoot.recreate_reference_mode
       ? "Special recreate-reference mode is active. The client wants a result similar to the optional reference. Use the optional reference only for selected visual direction such as pose, outfit, scene, lighting and composition. Never copy the reference person's face, body, age, hair, identity or proportions. Preserve the real client completely, including real age, real body, real hair and real skin texture. Keep the final image like a real iPhone 15 photo."
       : "",
     shoot.recreate_options ? `Selected recreate options: ${Object.entries(shoot.recreate_options).filter(([, enabled]) => enabled).map(([key]) => key).join(", ") || "none"}.` : "",
-    optionalReferenceSummary(referencePhotos)
+    optionalReferenceSummary(referencePhotos),
+    "CRITICAL IDENTITY REMINDER: The person in this image MUST be the exact same person from the reference photos. Same face. Same skin tone. Same hair. Same body. Same weight. Same proportions. If you are about to generate a different person, STOP and start over with the correct identity.",
+    "Negative: different person, wrong person, different face, changed face structure, different skin tone, lighter skin, darker skin, different ethnicity, different body weight, thinner body, heavier body, different hair color, different eye color, model-perfect face, idealized face."
   ].filter(Boolean).join("\n\n");
 }

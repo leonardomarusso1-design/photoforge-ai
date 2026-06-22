@@ -18,7 +18,7 @@ const categoryPrompts: Record<string, string> = {
   Casual: "Create a realistic casual lifestyle photoshoot in a natural environment, relaxed pose, authentic expression, realistic everyday elegance."
 };
 
-export const defaultNegativePrompt = "AI-generated look, fake face, different person, changed identity, overly beautified face, plastic skin, blurred face, distorted eyes, asymmetrical eyes beyond natural features, changed nose, changed mouth, changed lips, changed jawline, wrong age, younger face, older face, wrong body, unrealistic body proportions, extra fingers, missing fingers, broken hands, distorted hands, deformed legs, extra limbs, bad anatomy, blurry, low quality, cartoon, 3D render, doll-like skin, wax skin, beauty filter, over-smoothed skin, watermark, text, logo, signature, mutated body, distorted tattoos, wrong tattoos, fake tattoos, unnatural smile, exaggerated teeth.";
+export const defaultNegativePrompt = "AI-generated look, fake face, different person, changed identity, overly beautified face, plastic skin, blurred face, distorted eyes, asymmetrical eyes beyond natural features, changed nose, changed mouth, changed lips, changed jawline, wrong age, younger face, older face, wrong body, unrealistic body proportions, extra fingers, missing fingers, broken hands, distorted hands, deformed legs, extra limbs, bad anatomy, blurry, low quality, cartoon, 3D render, doll-like skin, wax skin, beauty filter, over-smoothed skin, watermark, text, logo, signature, mutated body, distorted tattoos, wrong tattoos, fake tattoos, unnatural smile, exaggerated teeth, wrong person, different face, changed face structure, different skin tone, lighter skin, darker skin, different ethnicity, different body weight, thinner body, heavier body, different hair color, different eye color, model-perfect face, idealized face.";
 
 function normalizeText(value?: string | null) {
   return value?.trim().replace(/\s+/g, " ") ?? "";
@@ -142,6 +142,7 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
   return [
     `Identity priority: ${identityBlock}`,
     `Client: ${client.name}${client.age ? `, ${client.age} years old` : ""}.`,
+    "Before generating, mentally describe the exact person in the reference photos: their specific face shape, exact skin tone, exact hair color and style, exact body proportions, exact weight and build. Generate THAT specific person, not a similar one.",
     matureClient ? matureClientBlock : "",
     tattoos ? "Preserve all visible tattoos accurately in the same body areas, with realistic placement, scale and orientation." : "",
     `Body and proportions: ${anatomyBlock}`,
@@ -152,6 +153,7 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
     references ? `Optional references: ${references} Face references are for identity only, not clothing, background or crop.` : "Reference usage: face and body photos are for identity, age, hair and body proportions only, not clothing, background or crop.",
     shoot.recreate_reference_mode ? "Recreate-reference mode: use the optional reference only for pose, outfit, environment, lighting and composition. Do not copy the reference person's face, body, age, hair, proportions or identity. Preserve the real client's face, body, hair, age, skin texture and natural proportions completely." : "",
     "Photographic quality: realistic DSLR photo, professional photography, high detail, real human skin, realistic shadows, natural colors, believable background, no artificial AI look.",
+    "CRITICAL IDENTITY REMINDER: The person in this image MUST be the exact same person from the reference photos. Same face. Same skin tone. Same hair. Same body. Same weight. Same proportions. If you are about to generate a different person, STOP and start over with the correct identity.",
     `Negative prompt: ${defaultNegativePrompt}. Do not copy hoodie, sweatshirt, casual clothing, indoor background or tight face crop from the uploaded identity references unless explicitly requested. Do not add text, labels, logos, watermarks or written words inside the image.`
   ].filter(Boolean).join("\n\n");
 }
