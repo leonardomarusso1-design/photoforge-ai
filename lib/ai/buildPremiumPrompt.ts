@@ -6,6 +6,25 @@ const anatomyBlock = `Maintain realistic human anatomy, natural posture, correct
 
 const matureClientBlock = `The client is 50 years old or older. Do not rejuvenate. Do not slim the body. Preserve age-compatible skin texture, arms, legs, face, neck, hands, natural body proportions, natural wrinkles and real mature features. The client must still look like the same real person at the real age.`;
 
+const subtypePrompts: Record<string, string> = {
+  "aniversario|luxo": "Create a realistic luxury birthday photoshoot in an elegant studio or premium indoor venue. Decor: golden balloons, floral arrangements, champagne, candles, velvet or silk textures. Lighting: soft studio key light with warm fill. Mood: sophisticated celebration. Camera look: editorial DSLR portrait, shallow depth of field, rich colors.",
+  "aniversario|baloes": "Create a realistic birthday photoshoot with colorful balloons as main prop. Setting: clean studio background or bright outdoor space. Balloons: mixed colors, floating naturally. Mood: joyful celebration. Lighting: bright, airy, natural. Camera: lifestyle shot showing balloons and subject together.",
+  "aniversario|bolo": "Create a realistic birthday photoshoot featuring a beautiful decorated cake as main element. Setting: table setup, warm ambient light, candles lit on cake. Pose: natural interaction with cake. Mood: genuine celebration moment. Camera: lifestyle close-medium shot.",
+  "casual|urbano": "Create a realistic casual lifestyle photo in an urban environment: tree-lined street, modern cafe exterior, or urban park. Natural daylight or golden hour. Outfit: everyday casual. Pose: relaxed, spontaneous. Camera: candid lifestyle shot, natural colors.",
+  "casual|praia": "Create a realistic casual beach lifestyle photo. Setting: open beach, golden hour light, soft waves. Mood: relaxed, authentic. Wind in hair, bare feet on sand. Camera: wide lifestyle shot showing beach environment clearly.",
+  "casual|cafe": "Create a realistic lifestyle photo in a cozy coffee shop. Setting: wooden tables, warm ambient light, coffee cup in frame. Mood: relaxed, content. Camera: medium lifestyle shot, bokeh background.",
+  "praia|lifestyle": "Create a realistic wide beach lifestyle photo. Setting: full beach scene, ocean waves visible, open sky. Natural sunlight. Pose: natural movement or standing. Camera: wide shot showing full body and beach environment.",
+  "praia|editorial": "Create a realistic editorial beach photo. Setting: beach at golden hour or sunset, dramatic sky. Composition: editorial framing, strong visual identity. Lighting: warm directional natural light. Camera: editorial DSLR, rich tones.",
+  "profissional/empresa|perfil": "Create a realistic professional headshot or portrait. Setting: neutral background (grey, white, dark) or modern office environment. Lighting: soft studio or window light. Expression: confident, approachable. Camera: tight portrait or medium shot.",
+  "profissional/empresa|linkedin": "Create a realistic LinkedIn-style professional photo. Setting: clean neutral background or modern interior. Expression: friendly and professional. Attire: business casual or formal. Camera: natural portrait, clean composition.",
+  "casal|editorial": "Create a realistic editorial couple photo. Setting: beautiful location (urban, nature or studio). Natural interaction between couple. Mood: romantic but not exaggerated. Lighting: natural or soft studio. Camera: lifestyle editorial composition.",
+  "gestante|elegante": "Create a realistic elegant maternity photo. Setting: soft neutral studio or natural outdoor space. Lighting: soft directional light highlighting the bump. Styling: flowing dress or elegant outfit. Mood: emotional, beautiful, respectful. Camera: medium or full body shot.",
+  "infantil/bebe|estudio": "Create a realistic studio baby or child photo. Setting: clean studio with soft props, pastel colors, safe environment. Lighting: soft diffused studio light. Expression: genuine, natural. Camera: medium shot, shallow depth of field.",
+  "fitness|academia": "Create a realistic fitness gym photo. Setting: modern gym interior, equipment visible in background. Lighting: athletic dramatic lighting. Pose: strong, confident athletic pose. Camera: medium to full body shot showing physique and environment.",
+  "personalizado|referencia": "Create a realistic professional photoshoot that recreates the scene, pose, outfit and lighting from the provided reference image. Use the reference only for visual direction. Preserve 100% of the client's real identity.",
+  "personalizado|avancado": "Create a realistic professional photoshoot based on the written description provided. Follow all specified details for scene, outfit, pose and expression."
+};
+
 const categoryPrompts: Record<string, string> = {
   Aniversario: "Create a realistic birthday photoshoot in a beautiful decorated environment, elegant balloons, premium lighting, tasteful composition, professional camera look, realistic celebration atmosphere.",
   Casal: "Create a realistic couple photoshoot with natural chemistry, elegant composition, romantic but not exaggerated mood, realistic body interaction, natural hands and authentic expressions. The man should have a calm and confident neutral expression, mouth closed, no visible teeth, no exaggerated smile, unless the user explicitly requests otherwise.",
@@ -118,8 +137,14 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
   const outfit = buildOutfitLine(shoot);
   const compositionGoal = buildCompositionGoal(shoot);
   const matureClient = isMatureClient(client, shoot);
+  const subtypeKey = shoot.subtype
+    ? `${normalizeKey(shoot.category)}|${normalizeKey(shoot.subtype)}`
+    : "";
+  const sceneBase = (subtypeKey && subtypePrompts[subtypeKey])
+    ?? categoryPrompts[shoot.category]
+    ?? "Create a realistic professional photoshoot with premium composition, believable location, natural colors and high-end photography look.";
   const scene = [
-    categoryPrompts[shoot.category] ?? "Create a realistic professional photoshoot with premium composition, believable location, natural colors and high-end photography look.",
+    sceneBase,
     shoot.location && `Location/scenario: ${shoot.location}.`,
     shoot.mood && `Mood/environment: ${shoot.mood}.`,
     shoot.lighting && `Lighting: ${shoot.lighting}.`

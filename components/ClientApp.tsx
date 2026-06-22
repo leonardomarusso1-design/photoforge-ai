@@ -1010,6 +1010,7 @@ export function ShootCreatePage() {
       setForm((current) => ({
         ...current,
         category: template.category,
+        subtype: template.subtype,
         title: current.title || template.name,
         photo_style: current.photo_style || "foto realista com celular moderno, estilo iPhone 15",
         free_notes: current.free_notes || template.description
@@ -1127,6 +1128,7 @@ export function ShootCreatePage() {
         consent_portfolio: Boolean(form.consent_portfolio),
         consent_ads: Boolean(form.consent_ads),
         consent_no_public_use: Boolean(form.consent_no_public_use),
+        subtype: form.subtype || undefined,
         recreate_reference_mode: Boolean(form.recreate_reference_mode),
         recreate_options: form.recreate_options ?? null,
         created_at: draftShoot?.created_at ?? now,
@@ -1167,7 +1169,8 @@ export function ShootCreatePage() {
       consent_ads: Boolean(form.consent_ads),
       consent_no_public_use: Boolean(form.consent_no_public_use),
       recreate_reference_mode: Boolean(form.recreate_reference_mode),
-      recreate_options: form.recreate_options ?? null
+      recreate_options: form.recreate_options ?? null,
+      subtype: form.subtype || null
     };
 
     let query = draftShoot
@@ -1176,8 +1179,8 @@ export function ShootCreatePage() {
 
     let { data: shoot, error } = await query.select("*").single();
 
-    if (error?.message?.includes("consent_internal_use") || error?.message?.includes("recreate_reference_mode") || error?.message?.includes("recreate_options")) {
-      const { consent_internal_use, consent_whatsapp_example, consent_portfolio, consent_ads, consent_no_public_use, recreate_reference_mode, recreate_options, ...fallbackPayload } = payload;
+    if (error?.message?.includes("consent_internal_use") || error?.message?.includes("recreate_reference_mode") || error?.message?.includes("recreate_options") || error?.message?.includes("subtype")) {
+      const { consent_internal_use, consent_whatsapp_example, consent_portfolio, consent_ads, consent_no_public_use, recreate_reference_mode, recreate_options, subtype, ...fallbackPayload } = payload;
       query = draftShoot
         ? supabase.from("shoots").update(fallbackPayload).eq("id", draftShoot.id).eq("user_id", userId)
         : supabase.from("shoots").insert(fallbackPayload);

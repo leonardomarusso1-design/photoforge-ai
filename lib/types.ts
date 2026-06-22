@@ -77,6 +77,7 @@ export type Shoot = {
   consent_portfolio?: boolean | null;
   consent_ads?: boolean | null;
   consent_no_public_use?: boolean | null;
+  subtype?: string;
   recreate_reference_mode?: boolean | null;
   recreate_options?: Record<string, boolean> | null;
   created_at: string;

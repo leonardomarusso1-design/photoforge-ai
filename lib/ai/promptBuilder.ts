@@ -4,6 +4,25 @@ export const baseIdentityPrompt = `Uploaded photos are identity photos only. Pre
 
 export const over50Prompt = `The client is over 50 years old. Keep the real age visible. Do not rejuvenate. Keep arms, legs, skin texture and body proportions realistic for the client's age.`;
 
+export const subtypePrompts: Record<string, string> = {
+  "aniversario|luxo": "Create a realistic luxury birthday photoshoot in an elegant studio or premium indoor venue. Decor: golden balloons, floral arrangements, champagne, candles, velvet or silk textures. Lighting: soft studio key light with warm fill. Mood: sophisticated celebration. Camera look: editorial DSLR portrait, shallow depth of field, rich colors.",
+  "aniversario|baloes": "Create a realistic birthday photoshoot with colorful balloons as main prop. Setting: clean studio background or bright outdoor space. Balloons: mixed colors, floating naturally. Mood: joyful celebration. Lighting: bright, airy, natural. Camera: lifestyle shot showing balloons and subject together.",
+  "aniversario|bolo": "Create a realistic birthday photoshoot featuring a beautiful decorated cake as main element. Setting: table setup, warm ambient light, candles lit on cake. Pose: natural interaction with cake. Mood: genuine celebration moment. Camera: lifestyle close-medium shot.",
+  "casual|urbano": "Create a realistic casual lifestyle photo in an urban environment: tree-lined street, modern cafe exterior, or urban park. Natural daylight or golden hour. Outfit: everyday casual. Pose: relaxed, spontaneous. Camera: candid lifestyle shot, natural colors.",
+  "casual|praia": "Create a realistic casual beach lifestyle photo. Setting: open beach, golden hour light, soft waves. Mood: relaxed, authentic. Wind in hair, bare feet on sand. Camera: wide lifestyle shot showing beach environment clearly.",
+  "casual|cafe": "Create a realistic lifestyle photo in a cozy coffee shop. Setting: wooden tables, warm ambient light, coffee cup in frame. Mood: relaxed, content. Camera: medium lifestyle shot, bokeh background.",
+  "praia|lifestyle": "Create a realistic wide beach lifestyle photo. Setting: full beach scene, ocean waves visible, open sky. Natural sunlight. Pose: natural movement or standing. Camera: wide shot showing full body and beach environment.",
+  "praia|editorial": "Create a realistic editorial beach photo. Setting: beach at golden hour or sunset, dramatic sky. Composition: editorial framing, strong visual identity. Lighting: warm directional natural light. Camera: editorial DSLR, rich tones.",
+  "profissional/empresa|perfil": "Create a realistic professional headshot or portrait. Setting: neutral background (grey, white, dark) or modern office environment. Lighting: soft studio or window light. Expression: confident, approachable. Camera: tight portrait or medium shot.",
+  "profissional/empresa|linkedin": "Create a realistic LinkedIn-style professional photo. Setting: clean neutral background or modern interior. Expression: friendly and professional. Attire: business casual or formal. Camera: natural portrait, clean composition.",
+  "casal|editorial": "Create a realistic editorial couple photo. Setting: beautiful location (urban, nature or studio). Natural interaction between couple. Mood: romantic but not exaggerated. Lighting: natural or soft studio. Camera: lifestyle editorial composition.",
+  "gestante|elegante": "Create a realistic elegant maternity photo. Setting: soft neutral studio or natural outdoor space. Lighting: soft directional light highlighting the bump. Styling: flowing dress or elegant outfit. Mood: emotional, beautiful, respectful. Camera: medium or full body shot.",
+  "infantil/bebe|estudio": "Create a realistic studio baby or child photo. Setting: clean studio with soft props, pastel colors, safe environment. Lighting: soft diffused studio light. Expression: genuine, natural. Camera: medium shot, shallow depth of field.",
+  "fitness|academia": "Create a realistic fitness gym photo. Setting: modern gym interior, equipment visible in background. Lighting: athletic dramatic lighting. Pose: strong, confident athletic pose. Camera: medium to full body shot showing physique and environment.",
+  "personalizado|referencia": "Create a realistic professional photoshoot that recreates the scene, pose, outfit and lighting from the provided reference image. Use the reference only for visual direction. Preserve 100% of the client's real identity.",
+  "personalizado|avancado": "Create a realistic professional photoshoot based on the written description provided. Follow all specified details for scene, outfit, pose and expression."
+};
+
 export const shootTemplates: Record<string, string> = {
   aniversario: "Create a realistic birthday photoshoot with tasteful celebration elements, premium but natural decoration, believable indoor or outdoor lighting, and an authentic celebratory mood.",
   casual: "Create a realistic casual lifestyle photo with relaxed styling, natural posture, modern everyday environment, and candid human energy.",
@@ -49,11 +68,12 @@ export function buildGeminiImagePrompt(args: {
   styleType: string;
   age?: number | null;
   extraInstructions?: string | null;
+  sceneOverride?: string;
 }) {
   return [
     baseIdentityPrompt,
     args.age && args.age >= 50 ? over50Prompt : "",
-    `Shoot type: ${args.shootType}. ${templateForShootType(args.shootType)}`,
+    `Shoot type: ${args.shootType}. ${args.sceneOverride ?? templateForShootType(args.shootType)}`,
     args.styleType ? `Style direction: ${args.styleType}. Keep the style photographic and realistic, never illustrative or synthetic.` : "",
     `Input usage: ${args.identityImages.length} uploaded client identity image(s) are provided. Use all of them together to preserve the same real person consistently.`,
     args.referenceImage ? "A separate optional reference image is provided. Use it only for pose, outfit, scene, framing, lighting and composition. Do not copy the reference person's face, body, age or hair." : "No optional visual reference image is provided. Use the selected template and written fields for pose, outfit, scene, lighting and composition.",
@@ -78,6 +98,11 @@ export function buildGeminiPromptFromShoot(shoot: Shoot, client: Client, referen
     shoot.makeup && `Makeup: ${shoot.makeup}`
   ].filter(Boolean).join(". ");
 
+  const subtypeKey = shoot.subtype
+    ? `${normalizePromptKey(shoot.category)}|${normalizePromptKey(shoot.subtype)}`
+    : "";
+  const sceneOverride = (subtypeKey && subtypePrompts[subtypeKey]) || undefined;
+
   return [
     buildGeminiImagePrompt({
       identityImages: referencePhotos.filter((photo) => ["face_neutral", "face_smiling", "full_body_front", "full_body_side"].includes(photo.type)),
@@ -85,7 +110,8 @@ export function buildGeminiPromptFromShoot(shoot: Shoot, client: Client, referen
       shootType: shoot.category,
       styleType: styleDetails || shoot.category,
       age: client.age,
-      extraInstructions: shoot.free_notes
+      extraInstructions: shoot.free_notes,
+      sceneOverride
     }),
     "Before generating, mentally describe the exact person in the reference photos: their specific face shape, exact skin tone, exact hair color and style, exact body proportions, exact weight and build. Generate THAT specific person, not a similar one.",
     shoot.recreate_reference_mode
