@@ -135,11 +135,21 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
   }
 
   return (
-    <main className="mesh grid min-h-screen place-items-center px-4 py-10">
-      <Card className="w-full max-w-md">
+    <main className="mesh min-h-screen lg:flex">
+      <div className="hidden flex-col justify-center border-r border-white/[.06] p-16 lg:flex lg:w-1/2">
         <Logo />
-        <h1 className="mt-8 text-2xl font-semibold">{title}</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-400">Autenticacao real via Supabase Auth. O profile e criado automaticamente pelo trigger do banco.</p>
+        <h2 className="mt-12 font-display text-4xl font-bold leading-tight text-white">
+          Transforme fotos em ensaios profissionais com IA
+        </h2>
+        <p className="mt-4 max-w-xs text-sm leading-7 text-slate-300">
+          Cadastre a cliente, envie as fotos certas e gere imagens realistas em minutos. Sem câmera. Sem estúdio.
+        </p>
+      </div>
+      <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10 lg:min-h-0 lg:w-1/2">
+      <Card className="w-full max-w-md">
+        <div className="lg:hidden"><Logo /></div>
+        <h1 className="mt-8 text-2xl font-semibold lg:mt-0">{title}</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-400">Entre na sua conta ou crie uma nova para acessar o app.</p>
         {mode === "login" && process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? (
           <div className="mt-4 rounded-lg border border-gold/30 bg-gold/10 p-3 text-sm leading-6 text-gold">
             Login demo liberado: demo@photoforge.ai / photoforge123. Este acesso usa dados simulados e nao altera dados reais.
@@ -160,6 +170,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
           <a href="/forgot-password">Esqueci senha</a>
         </div>
       </Card>
+      </div>
     </main>
   );
 }

@@ -31,11 +31,11 @@ const templates = [
 
 const faqs = [
   ["Preciso ser fotografo?", "Nao. O app organiza o processo para quem vende imagens com IA e precisa de um fluxo confiavel."],
-  ["Como funcionam os creditos?", "Os creditos controlam quantas imagens podem ser geradas em cada ensaio."],
+  ["Como funcionam os creditos?", "Cada crédito gera uma imagem. Comunidade recebe 15 créditos por mês. Avulsos disponíveis a partir de R$39,90."],
   ["Posso usar para clientes reais?", "Sim, desde que voce tenha autorizacao de uso de imagem da pessoa fotografada."],
   ["As imagens ficam salvas?", "Sim. As imagens ficam vinculadas ao usuario, cliente e ensaio."],
   ["Posso excluir fotos?", "Sim. A galeria permite remover imagens do fluxo visivel."],
-  ["A IA ja esta integrada?", "O app ja foi pensado para geracao real. A liberacao publica deve acontecer somente apos testes de qualidade, controle de creditos e seguranca de custo."],
+  ["A IA ja esta integrada?", "Sim. A geração é feita por modelo de IA de última geração com preservação de identidade. Cada ensaio passa por revisão antes da entrega."],
   ["O app garante que o rosto fique identico?", "Nao. O objetivo e preservar identidade com o maximo de qualidade possivel, mas toda geracao com IA precisa de revisao humana antes da entrega."],
   ["O app substitui edicao manual?", "Ele acelera a criacao e organizacao, mas nao promete resultado perfeito nem substitui revisao profissional quando necessario."]
 ];
@@ -48,8 +48,9 @@ export default function LandingPage() {
         <nav className="flex items-center gap-2">
           <Button href="/login" variant="ghost">Entrar</Button>
           <Button href="/register" variant="ghost">Criar conta</Button>
+          <Button href="#como-funciona" variant="ghost">Como funciona</Button>
           <Button href="#planos" variant="secondary">Ver planos</Button>
-          <Button href="/register">Comprar creditos</Button>
+          <Button href="/register">Começar agora</Button>
         </nav>
       </header>
 
@@ -111,7 +112,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="planos" className="mx-auto max-w-7xl px-4 py-16 md:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-16 md:px-8">
         <SectionHeader eyebrow="Templates" title="Templates prontos para vender mais rapido" text="Use ideias de ensaio como ponto de partida para criar ofertas mais claras e entregaveis mais consistentes." />
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {templates.map(([title, description, badge, image]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} imageSrc={`/assets/landing/${image}`} />)}
@@ -132,14 +133,30 @@ export default function LandingPage() {
         </Card>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 md:px-8">
-        <SectionHeader eyebrow="Planos" title="Escolha um caminho para comecar" />
+      <section id="planos" className="mx-auto max-w-7xl px-4 py-16 md:px-8">
+        <SectionHeader eyebrow="Planos" title="Escolha um caminho para começar" />
         <div className="mt-8 grid gap-5 md:grid-cols-3">
-          {[
-            ["Comunidade", "Melhor custo para membros", "Para alunos que querem vender ensaios com IA pagando menos por creditos.", ["Creditos com condicao especial", "Templates e atualizacoes primeiro", "Ideal para aprender vendendo"], "Entrar como membro"],
-            ["Publico", "Teste inicial", "Para testar a plataforma e comprar creditos avulsos sem compromisso.", ["Acesso ao fluxo completo", "Creditos avulsos", "Bom para validar a oferta"], "Comecar teste"],
-            ["Pro", "Mais volume", "Para quem pretende atender mais clientes e operar com volume.", ["Mais controle de operacao", "Historico e galeria organizados", "Pensado para escala futura"], "Quero usar no volume"]
-          ].map(([plan, badge, text, bullets, cta]) => <Card key={plan as string} className={plan === "Comunidade" ? "border-cyan/50 bg-cyan/10 shadow-[0_24px_80px_rgba(45,212,191,.12)] hover:border-cyan" : "hover:border-cyan/40"}><StatusBadge tone={plan === "Comunidade" ? "good" : "default"}>{badge as string}</StatusBadge><h3 className="mt-4 text-2xl font-semibold">{plan as string}</h3><p className="mt-3 text-sm leading-6 text-slate-400">{text as string}</p><div className="mt-5 grid gap-2">{(bullets as string[]).map((item) => <div key={item} className="flex gap-2 text-sm text-slate-300"><CheckCircle2 className="mt-0.5 h-4 w-4 text-cyan" />{item}</div>)}</div><Button href="/register" className="mt-6 w-full" variant={plan === "Publico" ? "primary" : "secondary"}>{cta as string}</Button></Card>)}
+          <Card className="border-cyan/50 bg-cyan/10 shadow-[0_24px_80px_rgba(45,212,191,.12)] hover:border-cyan">
+            <StatusBadge tone="good">Melhor custo</StatusBadge>
+            <h3 className="mt-4 text-xl font-semibold">Comunidade</h3>
+            <p className="mt-2 font-display text-4xl font-bold text-white">R$29,90<span className="text-base font-sans font-normal text-slate-400">/mês</span></p>
+            <p className="mt-3 text-sm leading-6 text-slate-400">15 créditos todo mês. Para quem quer vender ensaios com IA pagando menos.</p>
+            <Button href="/register" className="mt-6 w-full">Assinar comunidade</Button>
+          </Card>
+          <Card className="hover:border-cyan/40">
+            <StatusBadge tone="default">Sem mensalidade</StatusBadge>
+            <h3 className="mt-4 text-xl font-semibold">Avulso 20</h3>
+            <p className="mt-2 font-display text-4xl font-bold text-white">R$39,90</p>
+            <p className="mt-3 text-sm leading-6 text-slate-400">20 créditos sem mensalidade. Bom para validar a oferta antes de assinar.</p>
+            <Button href="/register" className="mt-6 w-full" variant="secondary">Comprar 20 créditos</Button>
+          </Card>
+          <Card className="hover:border-cyan/40">
+            <StatusBadge tone="default">Melhor por imagem</StatusBadge>
+            <h3 className="mt-4 text-xl font-semibold">Avulso 50</h3>
+            <p className="mt-2 font-display text-4xl font-bold text-white">R$89,90</p>
+            <p className="mt-3 text-sm leading-6 text-slate-400">50 créditos avulsos. Melhor custo por imagem para quem já vende com regularidade.</p>
+            <Button href="/register" className="mt-6 w-full" variant="secondary">Comprar 50 créditos</Button>
+          </Card>
         </div>
       </section>
 
@@ -160,7 +177,7 @@ export default function LandingPage() {
 
       <footer className="mx-auto flex max-w-7xl flex-wrap justify-between gap-4 border-t border-line px-4 py-8 text-sm text-slate-500 md:px-8">
         <span>PhotoForge AI</span>
-        <div className="flex gap-4"><a href="/terms">Termos</a><a href="/privacy">Privacidade</a><a href="/image-policy">Uso de imagem</a></div>
+        <div className="flex gap-4"><a href="/terms">Termos</a><a href="/privacy">Privacidade</a><a href="https://discord.com/invite/Sc6t4eJPvH">Comunidade</a><a href="/image-policy">Uso de imagem</a></div>
       </footer>
     </main>
   );

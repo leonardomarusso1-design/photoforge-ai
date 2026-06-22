@@ -1,7 +1,7 @@
 import { CheckCircle2 } from "lucide-react";
 import { Button, Card, Logo } from "@/components/ui";
 
-const discordUrl = process.env.DISCORD_INVITE_URL ?? "https://discord.gg/Sc6t4eJPvH";
+const discordUrl = "https://discord.com/invite/Sc6t4eJPvH";
 
 export default function ObrigadoComunidadePage() {
   return (

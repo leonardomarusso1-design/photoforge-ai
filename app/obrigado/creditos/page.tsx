@@ -26,7 +26,8 @@ export default function ObrigadoCreditosPage() {
             {[
               "Acesse o app e confira seu saldo atualizado",
               "Cadastre ou selecione uma cliente",
-              "Gere um novo ensaio com seus créditos"
+              "Gere um novo ensaio com seus créditos",
+              "Se os créditos não aparecerem em até 5 minutos, acesse Suporte no menu."
             ].map((item) => (
               <div key={item} className="flex items-start gap-2 text-sm text-slate-300">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-cyan" />

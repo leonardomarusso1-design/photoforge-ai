@@ -39,8 +39,7 @@ const navGroups = [
     title: "Conta",
     items: [
       { href: "/app/settings", label: "Configuracoes", icon: Settings },
-      { href: "/app/support", label: "Suporte", icon: Headphones },
-      { href: "/admin", label: "Admin", icon: Shield }
+      { href: "/app/support", label: "Suporte", icon: Headphones }
     ]
   }
 ];
@@ -88,7 +87,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const displayName = profile?.name || profile?.email?.split("@")[0] || "Usuario";
   const initials = displayName.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "PF";
   const plan = isDemoMode() ? "Demo" : profile?.role === "admin" ? "Admin" : profile?.plan_type === "community" || profile?.plan_type === "Comunidade" ? "Comunidade" : profile?.plan_type === "pro" || profile?.plan_type === "Pro" ? "Pro" : "Publico";
-  const visibleGroups = navGroups.map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/admin" || isAdmin) })).filter((group) => group.items.length > 0);
+  const visibleGroups = navGroups.filter((group) => group.items.length > 0);
   const mobileItems = visibleGroups.flatMap((group) => group.items).slice(0, 9);
 
   return (
@@ -117,6 +116,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
+        {isAdmin && (
+          <Link href="/admin" className="group mt-4 flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-sm text-steel transition hover:border-white/10 hover:bg-white/[.045] hover:text-white">
+            <span className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/[.03] text-steel group-hover:text-cyan">
+              <Shield className="h-4 w-4" />
+            </span>
+            Admin
+          </Link>
+        )}
         <div className="absolute bottom-5 left-5 right-5 rounded-lg border border-champagne/[.18] bg-ink/85 p-4 shadow-soft">
           <div className="flex items-center justify-between">
             <span className="text-sm text-steel">Creditos disponiveis</span>
@@ -138,7 +145,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {profile?.avatar_url ? <img src={profile.avatar_url} alt={displayName} className="h-9 w-9 rounded-full border border-white/10 object-cover" /> : <div className="grid h-9 w-9 place-items-center rounded-full border border-champagne/25 bg-champagne text-sm font-semibold text-ink">{initials}</div>}
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{displayName}</p>
-                  <p className="text-xs text-steel">Plano {plan} - {credits ?? 0} creditos</p>
+                  <Link href={withDemoParam("/app/credits")} className="flex items-center gap-1 text-xs text-steel transition hover:text-champagne">
+                    <WalletCards className="h-3.5 w-3.5" />
+                    {credits ?? 0} crédito{(credits ?? 0) !== 1 ? "s" : ""}
+                  </Link>
                 </div>
               </div>
               <Button href="/app/shoots/new"><Plus className="h-4 w-4" /> Novo ensaio</Button>

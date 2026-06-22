@@ -6,7 +6,7 @@ import { withDemoParam } from "@/lib/demoMode";
 export function Logo() {
   return (
     <Link href="/" className="group flex items-center gap-3">
-      <div className="grid h-10 w-10 place-items-center rounded-lg border border-champagne/30 bg-gradient-to-br from-champagne via-cyan to-violet text-sm font-black text-ink shadow-glow transition group-hover:scale-[1.02]">PF</div>
+      <div className="grid h-10 w-10 place-items-center rounded-lg border border-champagne/30 bg-gradient-to-br from-champagne via-gold to-[#c9a227] text-sm font-black text-ink shadow-glow transition group-hover:scale-[1.02]">PF</div>
       <div>
         <div className="text-base font-semibold text-white">PhotoForge AI</div>
         <div className="text-xs text-steel">Estudio digital com IA</div>
