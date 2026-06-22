@@ -143,6 +143,12 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
     `Identity priority: ${identityBlock}`,
     `Client: ${client.name}${client.age ? `, ${client.age} years old` : ""}.`,
     "Before generating, mentally describe the exact person in the reference photos: their specific face shape, exact skin tone, exact hair color and style, exact body proportions, exact weight and build. Generate THAT specific person, not a similar one.",
+    shoot.recreate_reference_mode
+      ? "RECREATE MODE ACTIVE: A visual reference photo has been provided showing a scene, pose, outfit and environment. Your job is to place THIS SPECIFIC CLIENT — the person in the identity reference photos — into that scene. The reference scene is a LOCATION and STYLE guide only. The face, body, hair, skin tone, weight, age and all physical features must come EXCLUSIVELY from the identity photos, not from the reference scene. If the reference shows a different person, IGNORE that person's appearance completely."
+      : "",
+    shoot.recreate_reference_mode
+      ? "Physical anchoring: The client has the following characteristics extracted from their identity photos — preserve ALL of these exactly:\n- Face: exact facial structure, real asymmetry, natural skin texture\n- Hair: exact color, volume, length, style and hairline\n- Body: exact weight, build, proportions and posture\n- Skin: exact tone, pores, marks and natural imperfections\n- Age: exact apparent age, do not make younger or older\nThese are non-negotiable. The scene changes, the person never does."
+      : "",
     matureClient ? matureClientBlock : "",
     tattoos ? "Preserve all visible tattoos accurately in the same body areas, with realistic placement, scale and orientation." : "",
     `Body and proportions: ${anatomyBlock}`,
@@ -154,6 +160,9 @@ export function buildPremiumPrompt(shoot: Shoot, client: Client, referencePhotos
     shoot.recreate_reference_mode ? "Recreate-reference mode: use the optional reference only for pose, outfit, environment, lighting and composition. Do not copy the reference person's face, body, age, hair, proportions or identity. Preserve the real client's face, body, hair, age, skin texture and natural proportions completely." : "",
     "Photographic quality: realistic DSLR photo, professional photography, high detail, real human skin, realistic shadows, natural colors, believable background, no artificial AI look.",
     "CRITICAL IDENTITY REMINDER: The person in this image MUST be the exact same person from the reference photos. Same face. Same skin tone. Same hair. Same body. Same weight. Same proportions. If you are about to generate a different person, STOP and start over with the correct identity.",
-    `Negative prompt: ${defaultNegativePrompt}. Do not copy hoodie, sweatshirt, casual clothing, indoor background or tight face crop from the uploaded identity references unless explicitly requested. Do not add text, labels, logos, watermarks or written words inside the image.`
+    shoot.recreate_reference_mode
+      ? "CRITICAL RECREATE REMINDER: You are placing a REAL specific person into a new scene. This is NOT a creative interpretation. The person's appearance is fixed and non-negotiable. If the output shows someone who looks different from the identity photos — different face structure, slimmer, heavier, younger, older, different hair — it is WRONG. Generate again with strict identity adherence."
+      : "",
+    `Negative prompt: ${defaultNegativePrompt}${shoot.recreate_reference_mode ? " Recreate-specific negative: copying reference person's face, using reference person's body, merging reference person's features with client's features, blending two people's appearances, composite face, hybrid identity." : ""} Do not copy hoodie, sweatshirt, casual clothing, indoor background or tight face crop from the uploaded identity references unless explicitly requested. Do not add text, labels, logos, watermarks or written words inside the image.`
   ].filter(Boolean).join("\n\n");
 }

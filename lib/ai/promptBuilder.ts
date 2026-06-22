@@ -89,11 +89,22 @@ export function buildGeminiPromptFromShoot(shoot: Shoot, client: Client, referen
     }),
     "Before generating, mentally describe the exact person in the reference photos: their specific face shape, exact skin tone, exact hair color and style, exact body proportions, exact weight and build. Generate THAT specific person, not a similar one.",
     shoot.recreate_reference_mode
+      ? "RECREATE MODE ACTIVE: A visual reference photo has been provided showing a scene, pose, outfit and environment. Your job is to place THIS SPECIFIC CLIENT — the person in the identity reference photos — into that scene. The reference scene is a LOCATION and STYLE guide only. The face, body, hair, skin tone, weight, age and all physical features must come EXCLUSIVELY from the identity photos, not from the reference scene. If the reference shows a different person, IGNORE that person's appearance completely."
+      : "",
+    shoot.recreate_reference_mode
+      ? "Physical anchoring: The client has the following characteristics extracted from their identity photos — preserve ALL of these exactly:\n- Face: exact facial structure, real asymmetry, natural skin texture\n- Hair: exact color, volume, length, style and hairline\n- Body: exact weight, build, proportions and posture\n- Skin: exact tone, pores, marks and natural imperfections\n- Age: exact apparent age, do not make younger or older\nThese are non-negotiable. The scene changes, the person never does."
+      : "",
+    shoot.recreate_reference_mode
       ? "Special recreate-reference mode is active. The client wants a result similar to the optional reference. Use the optional reference only for selected visual direction such as pose, outfit, scene, lighting and composition. Never copy the reference person's face, body, age, hair, identity or proportions. Preserve the real client completely, including real age, real body, real hair and real skin texture. Keep the final image like a real iPhone 15 photo."
       : "",
     shoot.recreate_options ? `Selected recreate options: ${Object.entries(shoot.recreate_options).filter(([, enabled]) => enabled).map(([key]) => key).join(", ") || "none"}.` : "",
     optionalReferenceSummary(referencePhotos),
     "CRITICAL IDENTITY REMINDER: The person in this image MUST be the exact same person from the reference photos. Same face. Same skin tone. Same hair. Same body. Same weight. Same proportions. If you are about to generate a different person, STOP and start over with the correct identity.",
-    "Negative: different person, wrong person, different face, changed face structure, different skin tone, lighter skin, darker skin, different ethnicity, different body weight, thinner body, heavier body, different hair color, different eye color, model-perfect face, idealized face."
+    shoot.recreate_reference_mode
+      ? "CRITICAL RECREATE REMINDER: You are placing a REAL specific person into a new scene. This is NOT a creative interpretation. The person's appearance is fixed and non-negotiable. If the output shows someone who looks different from the identity photos — different face structure, slimmer, heavier, younger, older, different hair — it is WRONG. Generate again with strict identity adherence."
+      : "",
+    shoot.recreate_reference_mode
+      ? "Negative: different person, wrong person, different face, changed face structure, different skin tone, lighter skin, darker skin, different ethnicity, different body weight, thinner body, heavier body, different hair color, different eye color, model-perfect face, idealized face, copying reference person's face, using reference person's body, merging reference person's features with client's features, blending two people's appearances, composite face, hybrid identity."
+      : "Negative: different person, wrong person, different face, changed face structure, different skin tone, lighter skin, darker skin, different ethnicity, different body weight, thinner body, heavier body, different hair color, different eye color, model-perfect face, idealized face."
   ].filter(Boolean).join("\n\n");
 }
