@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BarChart3, Camera, CheckCircle2, Copy, Download, Heart, Image as ImageIcon, Mail, MessageCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Users, WalletCards } from "lucide-react";
-import { categories, optionalPhotoTypes, requiredPhotoTypes, templates } from "@/lib/demoData";
+import { categories, detailPhotoTypes, optionalPhotoTypes, referencePhotoTypes, requiredPhotoTypes, templates } from "@/lib/demoData";
 import type { Client, ClientStatus, DemoState, GeneratedImage, GenerationQuantity, ReferencePhoto, Shoot } from "@/lib/types";
 import { buildPremiumPrompt, defaultNegativePrompt } from "@/lib/ai/buildPremiumPrompt";
 import { auditReferencePhoto, summarizePhotoQuality } from "@/lib/ai/photoQuality";
@@ -1588,14 +1588,15 @@ export function ShootCreatePage() {
           setForm({
             ...form,
             category: template.category,
+            subtype: template.subtype,
             title: form.title || template.name,
             photo_style: "foto realista com celular moderno, estilo iPhone 15",
-            free_notes: [form.free_notes, template.description].filter(Boolean).join(" "),
+            free_notes: template.description,
             recreate_reference_mode: template.name === "Recriar Referencia" ? true : form.recreate_reference_mode,
             recreate_options: template.name === "Recriar Referencia" ? { same_pose: true, similar_outfit: true, same_scene: true, same_lighting: true, keep_real_client: true, keep_real_body: true, keep_real_hair: true, keep_real_age: true, iphone_photo: true } : form.recreate_options
           });
         }} />}
-        {step === 4 && <div className="grid gap-5"><PersonalizationFields form={form} setForm={setForm} /><div className="rounded-lg border border-line bg-ink/60 p-4"><h2 className="text-lg font-semibold">Imagem de referencia opcional</h2><p className="mt-2 text-sm leading-6 text-slate-400">As fotos da cliente definem a identidade. A referencia serve apenas para pose, roupa, cenario e composicao.</p><RecreateReferenceMode form={form} setForm={setForm} /><div className="mt-4 grid gap-3 md:grid-cols-2">{optionalPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(currentRefs, photo.type)} preview={uploadPreviews[photo.type]} onUpload={uploadReferencePhoto} onRemove={removeReferencePhoto} />)}</div></div></div>}
+        {step === 4 && <div className="grid gap-5"><PersonalizationFields form={form} setForm={setForm} /><RecreateReferenceMode form={form} setForm={setForm} /></div>}
         {step === 5 && <ConsentStep form={form} setForm={setForm} />}
         {step === 6 && <ReviewStep form={form} client={client} refs={currentRefs} />}
         {step === 7 && <GenerationStep state={state} form={form} setForm={setForm} client={client} readyPhotos={readyPhotos} ready={ready} resultImages={resultImages} generating={generatingDemo} onGenerate={generateDemoResult} />}
@@ -1611,7 +1612,7 @@ export function ShootCreatePage() {
 }
 
 function TemplatePickStep({ selectedTemplate, onSelect }: { selectedTemplate: string; onSelect: (templateId: string) => void }) {
-  const grouped = ["Aniversario", "Casual", "Profissional/empresa", "Casal", "Praia", "Gestante", "Infantil/bebe", "Fitness", "Personalizado"];
+  const grouped = ["Personalizado", "Aniversario", "Casual", "Praia", "Profissional/empresa", "Casal", "Gestante", "Infantil/bebe", "Fitness"];
   return (
     <div className="grid gap-5">
       <SectionTitle title="Escolha o template do ensaio" text="O template complementa o prompt base de identidade. Ele nao substitui as fotos reais da cliente." />
@@ -1619,18 +1620,24 @@ function TemplatePickStep({ selectedTemplate, onSelect }: { selectedTemplate: st
         {grouped.map((category) => {
           const categoryTemplates = templates.filter((template) => template.category === category);
           if (categoryTemplates.length === 0) return null;
+          const isPersonalizado = category === "Personalizado";
           return (
             <div key={category}>
-              <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">{templateCategoryForShoot(category)}</h3><StatusBadge>{categoryTemplates.length} opcoes</StatusBadge></div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className={`font-semibold ${isPersonalizado ? "text-champagne" : ""}`}>{isPersonalizado ? "Personalizados" : templateCategoryForShoot(category)}</h3>
+                <StatusBadge tone={isPersonalizado ? "warn" : "default"}>{categoryTemplates.length} opcoes</StatusBadge>
+              </div>
+              <div className={`grid gap-3 ${isPersonalizado ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
                 {categoryTemplates.map((template) => {
                   const selected = selectedTemplate === template.id;
+                  const displayName = template.name === "Prompt Personalizado" ? "CRIE DO ZERO" : template.name;
+                  const isRecriar = template.subtype === "referencia";
                   return (
-                    <button key={template.id} type="button" onClick={() => onSelect(template.id)} className={`overflow-hidden rounded-lg border bg-ink/70 text-left transition hover:-translate-y-0.5 ${selected ? "border-champagne shadow-glow" : "border-white/[.08] hover:border-cyan/50"}`}>
+                    <button key={template.id} type="button" onClick={() => onSelect(template.id)} className={`overflow-hidden rounded-lg border bg-ink/70 text-left transition hover:-translate-y-0.5 ${selected ? "border-champagne shadow-glow" : isRecriar ? "border-gold/40 hover:border-gold" : "border-white/[.08] hover:border-cyan/50"}`}>
                       {templateVisual(template)}
                       <div className="p-3">
-                        <div className="flex flex-wrap gap-2"><StatusBadge tone={template.popular ? "good" : "default"}>{template.subtype}</StatusBadge>{template.badge ? <StatusBadge tone={template.name === "Recriar Referencia" ? "warn" : "good"}>{template.badge}</StatusBadge> : null}<StatusBadge tone="warn">{template.credits} creditos</StatusBadge></div>
-                        <h4 className="mt-3 font-semibold">{template.name}</h4>
+                        <div className="flex flex-wrap gap-2"><StatusBadge tone={isRecriar ? "warn" : template.popular ? "good" : "default"}>{template.subtype}</StatusBadge>{template.badge ? <StatusBadge tone={isRecriar ? "warn" : "good"}>{template.badge}</StatusBadge> : null}<StatusBadge tone="warn">{template.credits} creditos</StatusBadge></div>
+                        <h4 className="mt-3 font-semibold">{displayName}</h4>
                         <p className="mt-1 text-xs leading-5 text-slate-400">{template.description}</p>
                         <span className="mt-3 inline-flex text-sm font-semibold text-champagne">{selected ? "Selecionado" : "Usar modelo"}</span>
                       </div>
@@ -1772,12 +1779,16 @@ function PhotoStep({ refs, previews, onUpload, onRemove }: { refs: ReferencePhot
         <Notice tone="warn">Use boa luz, rosto nitido, sem filtro forte e corpo visivel. Placeholder visual nao libera geracao.</Notice>
       </div>
       <div>
-        <SectionTitle title="Fotos de identidade obrigatorias" text="Essas fotos preservam rosto, sorriso e proporcoes reais da cliente." />
+        <SectionTitle title="Fotos essenciais" text="Obrigatorias. Preservam rosto, sorriso e proporcoes reais da cliente." />
         <div className="mt-4 grid gap-3 md:grid-cols-2">{requiredPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={refs.find((ref) => ref.type === photo.type)} preview={previews[photo.type]} required onUpload={onUpload} onRemove={onRemove} />)}</div>
       </div>
       <div>
-        <SectionTitle title="Referencias opcionais" text="Use para roupa, pose, cabelo, tatuagens, costas ou uma inspiracao extra." />
-        <div className="mt-4 grid gap-3 md:grid-cols-2">{optionalPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(refs, photo.type)} preview={previews[photo.type]} onUpload={onUpload} onRemove={onRemove} />)}</div>
+        <SectionTitle title="Foto de referência" text="Opcional. Envie uma foto de inspiração para reproduzir o ambiente, pose ou roupa. A IA preserva 100% da identidade real da cliente." />
+        <div className="mt-4 grid gap-3 md:grid-cols-2">{referencePhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(refs, photo.type)} preview={previews[photo.type]} onUpload={onUpload} onRemove={onRemove} />)}</div>
+      </div>
+      <div>
+        <SectionTitle title="Fotos de detalhes" text="Opcional. Use para tatuagem, cabelo diferente, costas ou proporcoes laterais. Cada foto substitui o que vier nas fotos essenciais." />
+        <div className="mt-4 grid gap-3 md:grid-cols-2">{detailPhotoTypes.map((photo) => <ReferenceUploadField key={photo.type} photo={photo} refPhoto={findReferenceByType(refs, photo.type)} preview={previews[photo.type]} onUpload={onUpload} onRemove={onRemove} />)}</div>
       </div>
     </div>
   );

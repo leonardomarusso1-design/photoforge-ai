@@ -25,15 +25,20 @@ export const requiredPhotoTypes = [
   { type: "full_body_front", label: "Corpo inteiro de frente", description: "Corpo visivel para manter proporcoes reais." }
 ];
 
-export const optionalPhotoTypes = [
-  { type: "full_body_side", label: "Corpo inteiro de lado", description: "Avancado: melhora bracos, pernas e proporcoes do corpo." },
-  { type: "tattoo_arm", label: "Tatuagem no braco", description: "Opcional para preservar tatuagens ou marcas visiveis no braco." },
-  { type: "tattoo_leg", label: "Tatuagem na perna", description: "Opcional para preservar tatuagens ou detalhes nas pernas." },
-  { type: "back", label: "Costas", description: "Opcional para roupas, cabelo ou detalhes vistos por tras." },
-  { type: "hair_detail", label: "Detalhe do cabelo", description: "Opcional para preservar cor, comprimento e penteado real." },
-  { type: "outfit_reference", label: "Referencia de roupa", description: "Referencia de roupa, calcado, acessorios ou estilo visual." },
-  { type: "extra", label: "Extra", description: "Envie qualquer outra referencia complementar." }
+export const referencePhotoTypes = [
+  { type: "outfit_reference", label: "Foto de referência", description: "Envie uma foto de inspiração para reproduzir o ambiente, pose ou roupa. A IA não copia o rosto, corpo ou identidade da pessoa na foto." },
+  { type: "extra", label: "Referência extra", description: "Referência complementar adicional para ambiente, estilo ou composição." }
 ];
+
+export const detailPhotoTypes = [
+  { type: "full_body_side", label: "Corpo inteiro (lateral)", description: "Foto lateral para referência de volume, postura e silhueta reais." },
+  { type: "back", label: "Costas", description: "Foto das costas para capturar detalhes de cabelo, tatuagem ou modelagem de roupa." },
+  { type: "hair_detail", label: "Cabelo solto/diferente", description: "Se a foto essencial mostrar cabelo preso, envie aqui o cabelo que deseja no ensaio. O prompt vai usar esse cabelo." },
+  { type: "tattoo_arm", label: "Tatuagem (braço)", description: "Foto da região do braço mostrando a tatuagem para preservar exatamente na geração." },
+  { type: "tattoo_leg", label: "Tatuagem (perna)", description: "Foto da região da perna mostrando a tatuagem para preservar na geração." }
+];
+
+export const optionalPhotoTypes = [...referencePhotoTypes, ...detailPhotoTypes];
 
 export const templates = [
   { name: "Aniversario Luxo", category: "Aniversario", subtype: "luxo", description: "Vestido elegante, balões dourados, iluminação de estúdio premium. Resultado com aparência de ensaio fotográfico profissional.", image: "/assets/landing/template-aniversario.png", credits: 10, popular: true, badge: "Mais vendido" },
