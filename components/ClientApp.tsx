@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BarChart3, Camera, CheckCircle2, Copy, Download, Heart, Image as ImageIcon, Mail, MessageCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Users, WalletCards } from "lucide-react";
@@ -645,10 +645,12 @@ export function ClientFormPage() {
   const { state, commit, supabase, loadError } = useDemoState();
   const [form, setForm] = useState({ name: "", whatsapp: "", email: "", city: "", age: "", notes: "", status: "new" as ClientStatus });
   const [errorMessage, setErrorMessage] = useState("");
+  const [saving, setSaving] = useState(false);
   if (loadError) return <LoadErrorState message={loadError} />;
   if (!state) return <LoadingState />;
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (saving) return;
     setErrorMessage("");
     if (!isValidWhatsapp(form.whatsapp)) {
       setErrorMessage("Informe um WhatsApp valido com DDD.");
@@ -683,12 +685,14 @@ export function ClientFormPage() {
       return;
     }
 
+    setSaving(true);
     let userId = "";
     try {
       userId = await getCurrentUserId(supabase);
     } catch (error) {
       logSupabaseError("Supabase error", error);
       setErrorMessage("Sessao invalida. Entre novamente para salvar a cliente.");
+      setSaving(false);
       return;
     }
 
@@ -711,6 +715,7 @@ export function ClientFormPage() {
     if (error || !client) {
       logSupabaseError("Supabase error", error);
       setErrorMessage(process.env.NODE_ENV === "development" && error?.message ? `Erro do Supabase: ${error.message}` : "Nao foi possivel salvar a cliente agora. Confira os dados e tente novamente.");
+      setSaving(false);
       return;
     }
 
@@ -729,7 +734,7 @@ export function ClientFormPage() {
           <Field label="Idade"><input className={inputClass} type="number" inputMode="numeric" min={0} max={130} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value.replace(/\D/g, "") })} /></Field>
           <Field label="Status"><select className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ClientStatus })}>{clientStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
           <Field label="Observacoes"><textarea className={inputClass} rows={4} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
-          <div className="flex flex-wrap gap-3 md:col-span-2"><Button type="submit">Salvar cliente</Button><Button href="/app/clients" variant="secondary">Cancelar</Button><Button href="/app/dashboard" variant="ghost">Voltar</Button></div>
+          <div className="flex flex-wrap gap-3 md:col-span-2"><Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar cliente"}</Button><Button href="/app/clients" variant="secondary">Cancelar</Button><Button href="/app/dashboard" variant="ghost">Voltar</Button></div>
         </form>
       </Card>
     </>
@@ -988,6 +993,7 @@ export function ShootCreatePage() {
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState("");
   const [clientForm, setClientForm] = useState({ name: "", whatsapp: "", age: "", notes: "", over50: false });
+  const resolvedClientRef = useRef<Client | null>(null);
   const [form, setForm] = useState<Partial<Shoot>>({ title: "", category: "Aniversario", sold_price: 0, quantity: 4, consent_confirmed: false, provider: "mock" });
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [draftShoot, setDraftShoot] = useState<Shoot | null>(null);
@@ -1022,7 +1028,8 @@ export function ShootCreatePage() {
   const ready = Boolean(client && form.title && form.category && readyPhotos && form.consent_confirmed && state.credits.balance >= selectedCreditCost);
 
   async function ensureClient() {
-    if (client) return client;
+    if (resolvedClientRef.current) return resolvedClientRef.current;
+    if (client) { resolvedClientRef.current = client; return client; }
     if (!clientForm.name.trim()) {
       setFlowError("Escolha ou cadastre uma cliente antes de continuar.");
       return null;
@@ -1073,7 +1080,9 @@ export function ShootCreatePage() {
       setFlowError(process.env.NODE_ENV === "development" && error?.message ? `Erro do Supabase: ${error.message}` : "Nao foi possivel criar a cliente.");
       return null;
     }
+    resolvedClientRef.current = data as Client;
     setSelectedClient(data.id);
+    commit({ ...state!, clients: [data as Client, ...state!.clients] });
     return data as Client;
   }
 
@@ -1208,12 +1217,13 @@ export function ShootCreatePage() {
       return;
     }
     const shoot = await ensureDraftShoot();
-    if (!shoot || !client) return;
+    const activeClient = resolvedClientRef.current ?? client;
+    if (!shoot || !activeClient) return;
     if (isDemoMode()) {
       const referencePhoto: ReferencePhoto = {
         id: uid("ref"),
         user_id: demoUserId,
-        client_id: client.id,
+        client_id: activeClient.id,
         shoot_id: shoot.id,
         type,
         storage_path: "",
@@ -1253,7 +1263,7 @@ export function ShootCreatePage() {
       ...imageInspection
     });
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-    const storagePath = `${userId}/${client.id}/${shoot.id}/${type}/${Date.now()}-${safeName}`;
+    const storagePath = `${userId}/${activeClient.id}/${shoot.id}/${type}/${Date.now()}-${safeName}`;
     const storage = supabase.storage.from("client-reference-photos");
     const upload = await storage.upload(storagePath, file, { contentType: file.type, upsert: true });
 
@@ -1272,7 +1282,7 @@ export function ShootCreatePage() {
 
     const referencePayload = {
       user_id: userId,
-      client_id: client.id,
+      client_id: activeClient.id,
       shoot_id: shoot.id,
       type,
       storage_path: storagePath,
