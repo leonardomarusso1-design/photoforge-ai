@@ -15,7 +15,7 @@ export function Logo() {
   );
 }
 
-export function Button({ href, children, variant = "primary", className, disabled, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { href?: string; variant?: "primary" | "secondary" | "ghost" | "danger" }) {
+export function Button({ href, children, variant = "primary", className, disabled, target, rel, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { href?: string; variant?: "primary" | "secondary" | "ghost" | "danger"; target?: string; rel?: string }) {
   const cn = clsx(
     "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition duration-200 focus:outline-none focus:ring-2 focus:ring-champagne/60 disabled:cursor-not-allowed disabled:opacity-45",
     variant === "primary" && "border border-champagne/70 bg-champagne text-ink shadow-glow hover:-translate-y-px hover:bg-gold",
@@ -24,7 +24,8 @@ export function Button({ href, children, variant = "primary", className, disable
     variant === "danger" && "border border-red-400/25 bg-red-500/[.12] text-red-100 hover:border-red-300/45 hover:bg-red-500/20",
     className
   );
-  if (href) return <Link href={withDemoParam(href)} className={cn}>{children}</Link>;
+  const isExternal = typeof href === "string" && (href.startsWith("http://") || href.startsWith("https://"));
+  if (href) return <Link href={isExternal ? href : withDemoParam(href)} className={cn} target={target} rel={rel ?? (isExternal ? "noopener noreferrer" : undefined)}>{children}</Link>;
   return <button className={cn} disabled={disabled} {...props}>{children}</button>;
 }
 

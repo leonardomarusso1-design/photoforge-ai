@@ -15,7 +15,7 @@ function discordUrl() {
 }
 
 function appUrl() {
-  return (process.env.APP_URL ?? "https://photoforge-ai.vercel.app") + "/app/dashboard";
+  return (process.env.APP_URL ?? "https://app.leonardomarusso.com.br") + "/app/dashboard";
 }
 
 function communityHtml(name: string, credits: number) {

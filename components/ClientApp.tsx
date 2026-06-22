@@ -2429,15 +2429,17 @@ export function CreditsPage() {
           <Card key={plan.name} className={`flex flex-col hover:border-cyan/40 ${plan.isSubscription ? "border-champagne/35" : ""}`}>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge tone={plan.isSubscription ? "warn" : "default"}>
-                {plan.isSubscription ? "Assinatura mensal" : "Avulso"}
+                {plan.isSubscription ? "Assinatura mensal" : "Pacote avulso"}
               </StatusBadge>
             </div>
             <h2 className="mt-4 text-xl font-semibold">{plan.name}</h2>
+            <p className="mt-1 text-2xl font-semibold text-champagne">{plan.priceLabel}</p>
             <div className="mt-4 text-5xl font-semibold">{plan.credits}</div>
-            <p className="mt-1 text-sm text-steel">creditos inclusos</p>
+            <p className="mt-1 text-sm text-steel">créditos inclusos</p>
             <Button className="mt-6 w-full" onClick={() => handleBuy(plan)}>
               Comprar
             </Button>
+            <p className="mt-2 text-center text-xs text-steel">Use o mesmo email desta conta para os créditos caírem automaticamente.</p>
           </Card>
         ))}
       </div>
@@ -2759,11 +2761,11 @@ export function SettingsPage() {
 
 export function SupportPage() {
   const faqs = [
-    ["Creditos", "Confira seu saldo antes de gerar. Se o saldo for insuficiente, solicite novos creditos."],
-    ["Upload", "Use JPG, PNG ou WEBP ate 10 MB, com boa luz e sem filtro forte."],
-    ["Geracao", "A geracao so libera com cliente, categoria, fotos obrigatorias, consentimento e creditos."],
-    ["Conta", "Se nao conseguir entrar, faca logout e login novamente ou revise o e-mail usado."],
-    ["Pagamento", "Compra automatica de creditos ainda esta em preparacao."]
+    ["Créditos", "Confira seu saldo antes de gerar. Cada crédito gera uma imagem. Compre mais créditos na tela de Créditos."],
+    ["Upload", "Use JPG, PNG ou WEBP até 10 MB, com boa luz e sem filtro forte. Rosto visível e sem óculos escuros."],
+    ["Geração", "A geração só libera com cliente, categoria, fotos obrigatórias, consentimento e créditos suficientes."],
+    ["Conta", "Se não conseguir entrar, faça logout e login novamente ou use 'Esqueci senha' para recuperar o acesso."],
+    ["Pagamento", "Use o mesmo email desta conta no checkout. Os créditos caem automaticamente após a confirmação."]
   ];
   return (
     <>
@@ -2772,13 +2774,12 @@ export function SupportPage() {
         <Card className="border-cyan/25 bg-cyan/10">
           <MessageCircle className="h-8 w-8 text-cyan" />
           <h2 className="mt-4 text-xl font-semibold">Precisa de ajuda?</h2>
-          <p className="mt-2 text-sm leading-6 text-steel">Use os atalhos abaixo para seguir o fluxo ou falar com suporte. Descreva cliente, ensaio e mensagem de erro quando houver.</p>
+          <p className="mt-2 text-sm leading-6 text-steel">Para dúvidas sobre créditos, ensaios ou acesso, entre no Discord da comunidade ou envie um email. Respondemos em até 24h.</p>
           <div className="mt-5 grid gap-3">
-            <Button href="https://wa.me/5511900000000" variant="secondary">Falar no WhatsApp</Button>
-            <Button href="/app/templates" variant="secondary">Tutorial rapido</Button>
-            <Button href="/image-policy" variant="secondary">Guia de fotos boas</Button>
-            <Button href="/app/shoots/new">Criar novo ensaio</Button>
-            <Button href="/app/credits" variant="ghost">Comprar creditos</Button>
+            <Button href="https://discord.com/invite/Sc6t4eJPvH" target="_blank">Entrar no Discord</Button>
+            <p className="text-sm text-steel">Email: <span className="text-white">contato@leonardomarusso.com.br</span></p>
+            <Button href="/app/credits" variant="secondary">Comprar créditos</Button>
+            <Button href="/app/shoots/new" variant="ghost">Criar novo ensaio</Button>
           </div>
         </Card>
         <div className="grid gap-3 md:grid-cols-2">

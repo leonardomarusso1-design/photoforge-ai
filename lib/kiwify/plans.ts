@@ -5,6 +5,8 @@ export type KiwifyPlan = {
   credits: number;
   checkoutUrl: string;
   isSubscription: boolean;
+  price: number;
+  priceLabel: string;
 };
 
 export const plans: KiwifyPlan[] = [
@@ -14,7 +16,9 @@ export const plans: KiwifyPlan[] = [
     matchNames: ["comunidade mensal", "comunidade"],
     credits: 15,
     checkoutUrl: "https://pay.kiwify.com.br/9keMQeh",
-    isSubscription: true
+    isSubscription: true,
+    price: 29.90,
+    priceLabel: "R$29,90/mês"
   },
   {
     name: "Avulso 50",
@@ -22,7 +26,9 @@ export const plans: KiwifyPlan[] = [
     matchNames: ["avulso 50"],
     credits: 50,
     checkoutUrl: "https://pay.kiwify.com.br/PgO4KjC",
-    isSubscription: false
+    isSubscription: false,
+    price: 89.90,
+    priceLabel: "R$89,90"
   },
   {
     name: "Avulso 20",
@@ -30,7 +36,9 @@ export const plans: KiwifyPlan[] = [
     matchNames: ["avulso 20"],
     credits: 20,
     checkoutUrl: "https://pay.kiwify.com.br/E3k9PpC",
-    isSubscription: false
+    isSubscription: false,
+    price: 39.90,
+    priceLabel: "R$39,90"
   },
   {
     name: "Recarga Comunidade",
@@ -38,7 +46,9 @@ export const plans: KiwifyPlan[] = [
     matchNames: ["recarga comunidade", "recarga"],
     credits: 20,
     checkoutUrl: "https://pay.kiwify.com.br/TVkBgVn",
-    isSubscription: false
+    isSubscription: false,
+    price: 19.90,
+    priceLabel: "R$19,90"
   }
 ];
 

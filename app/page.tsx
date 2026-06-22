@@ -57,7 +57,7 @@ export default function LandingPage() {
       <section className="mx-auto grid max-w-7xl gap-10 px-4 pb-14 pt-8 md:px-8 lg:grid-cols-[.9fr_1fr] lg:pb-20 lg:pt-14">
         <div className="flex flex-col justify-center">
           <StatusBadge tone="good">Plataforma visual para vender ensaios com IA</StatusBadge>
-          <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-tight text-white md:text-6xl">Venda ensaios realistas com IA sem depender de estudio, camera ou edicao complexa</h1>
+          <h1 className="animate-fade-up mt-6 max-w-4xl text-4xl font-semibold leading-tight text-white md:text-6xl">Venda ensaios realistas com IA sem depender de estudio, camera ou edicao complexa</h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">Cadastre a cliente, envie as fotos certas, escolha o estilo do ensaio e gere imagens com aparencia profissional em um fluxo guiado.</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button href="/register">Comecar agora <ArrowRight className="h-4 w-4" /></Button>
@@ -73,7 +73,7 @@ export default function LandingPage() {
       <section className="border-y border-line bg-ink/80 px-4 py-16 md:px-8">
         <div className="mx-auto max-w-7xl">
           <SectionHeader eyebrow="Galeria pronta para revisao" title="Veja o que voce pode criar com um fluxo guiado" text="Escolha o tipo de ensaio, envie as referencias certas e mantenha tudo organizado por cliente." />
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="animate-fade-in mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {categories.map(([title, description, badge, image]) => <TemplatePreviewCard key={title} title={title} description={description} badge={badge} imageSrc={`/assets/landing/${image}`} />)}
           </div>
         </div>
@@ -136,26 +136,29 @@ export default function LandingPage() {
       <section id="planos" className="mx-auto max-w-7xl px-4 py-16 md:px-8">
         <SectionHeader eyebrow="Planos" title="Escolha um caminho para começar" />
         <div className="mt-8 grid gap-5 md:grid-cols-3">
-          <Card className="border-cyan/50 bg-cyan/10 shadow-[0_24px_80px_rgba(45,212,191,.12)] hover:border-cyan">
+          <Card className="animate-fade-in border-cyan/50 bg-cyan/10 shadow-[0_24px_80px_rgba(45,212,191,.12)] hover:border-cyan">
             <StatusBadge tone="good">Melhor custo</StatusBadge>
             <h3 className="mt-4 text-xl font-semibold">Comunidade</h3>
             <p className="mt-2 font-display text-4xl font-bold text-white">R$29,90<span className="text-base font-sans font-normal text-slate-400">/mês</span></p>
             <p className="mt-3 text-sm leading-6 text-slate-400">15 créditos todo mês. Para quem quer vender ensaios com IA pagando menos.</p>
-            <Button href="/register" className="mt-6 w-full">Assinar comunidade</Button>
+            <Button href="https://pay.kiwify.com.br/9keMQeh" target="_blank" className="mt-6 w-full">Assinar comunidade</Button>
+            <p className="mt-2 text-center text-xs text-slate-400">Use o mesmo email da sua conta PhotoForge para os créditos caírem automaticamente.</p>
           </Card>
-          <Card className="hover:border-cyan/40">
+          <Card className="animate-fade-in hover:border-cyan/40">
             <StatusBadge tone="default">Sem mensalidade</StatusBadge>
             <h3 className="mt-4 text-xl font-semibold">Avulso 20</h3>
             <p className="mt-2 font-display text-4xl font-bold text-white">R$39,90</p>
             <p className="mt-3 text-sm leading-6 text-slate-400">20 créditos sem mensalidade. Bom para validar a oferta antes de assinar.</p>
-            <Button href="/register" className="mt-6 w-full" variant="secondary">Comprar 20 créditos</Button>
+            <Button href="https://pay.kiwify.com.br/E3k9PpC" target="_blank" className="mt-6 w-full" variant="secondary">Comprar 20 créditos</Button>
+            <p className="mt-2 text-center text-xs text-slate-400">Use o mesmo email da sua conta PhotoForge para os créditos caírem automaticamente.</p>
           </Card>
-          <Card className="hover:border-cyan/40">
+          <Card className="animate-fade-in hover:border-cyan/40">
             <StatusBadge tone="default">Melhor por imagem</StatusBadge>
             <h3 className="mt-4 text-xl font-semibold">Avulso 50</h3>
             <p className="mt-2 font-display text-4xl font-bold text-white">R$89,90</p>
             <p className="mt-3 text-sm leading-6 text-slate-400">50 créditos avulsos. Melhor custo por imagem para quem já vende com regularidade.</p>
-            <Button href="/register" className="mt-6 w-full" variant="secondary">Comprar 50 créditos</Button>
+            <Button href="https://pay.kiwify.com.br/PgO4KjC" target="_blank" className="mt-6 w-full" variant="secondary">Comprar 50 créditos</Button>
+            <p className="mt-2 text-center text-xs text-slate-400">Use o mesmo email da sua conta PhotoForge para os créditos caírem automaticamente.</p>
           </Card>
         </div>
       </section>
