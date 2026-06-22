@@ -47,14 +47,11 @@ function useDemoState() {
         body: JSON.stringify({ userId, email: user.email, name: user.user_metadata?.name })
       });
 
-      const refsRes = await supabase.from("reference_photos").select("*").eq("user_id", userId).order("created_at", { ascending: false });
-      console.log("REFS ERROR:", JSON.stringify(refsRes.error));
-      console.log("REFS DATA:", refsRes.data?.length);
-
-      const [profileRes, clientsRes, shootsRes, imagesRes, creditsRes, txRes, logsRes] = await Promise.all([
+      const [profileRes, clientsRes, shootsRes, refsRes, imagesRes, creditsRes, txRes, logsRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("clients").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.from("shoots").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+        supabase.from("reference_photos").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.from("generated_images").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.from("credits").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("credit_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
@@ -1292,8 +1289,7 @@ export function ShootCreatePage() {
       body_visible: audit.body_visible,
       resolution_ok: audit.resolution_ok,
       lighting_quality: audit.lighting_quality,
-      audited_at: audit.audited_at,
-      notes: file.name
+      audited_at: audit.audited_at
     };
 
     let { data: referencePhoto, error } = await supabase
@@ -2010,8 +2006,7 @@ export function ShootDetailPage({ id }: { id: string }) {
       body_visible: audit.body_visible,
       resolution_ok: audit.resolution_ok,
       lighting_quality: audit.lighting_quality,
-      audited_at: audit.audited_at,
-      notes: file.name
+      audited_at: audit.audited_at
     };
     let { error: insertError } = await supabase.from("reference_photos").insert(referencePayload);
     if (insertError?.message?.includes("'body_visible' column") || insertError?.message?.includes("'face_visible' column") || insertError?.message?.includes("'lighting_quality' column") || insertError?.message?.includes("'storage_path' column") || insertError?.message?.includes("'quality_score' column")) {
