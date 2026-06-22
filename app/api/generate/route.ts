@@ -269,21 +269,6 @@ export async function POST(request: Request) {
         shoot_id: trustedShoot.id,
         provider: providerName,
         model: pendingModel,
-        request_payload: {
-          image_count: trustedShoot.quantity,
-          quantity: trustedShoot.quantity,
-          shoot_id: trustedShoot.id,
-          provider: providerName,
-          model: pendingModel,
-          credits_charged_on_success: creditsCharged,
-          composition_goal: compositionGoal,
-          aspect_ratio: aspectRatio,
-          primary_identity_photo_id: primaryReference?.id ?? null,
-          reference_photo_ids: trustedReferencePhotos.map((photo) => photo.id),
-          rejected_photo_ids: photoQuality.rejected.map((photo) => photo.id),
-          warning_photo_ids: photoQuality.warning.map((photo) => photo.id),
-          quality_summary: photoQuality.summary
-        },
         status: "pending",
         credits_charged: 0,
         cost_estimate: providerName === "replicate_flux" ? trustedShoot.quantity * 0.04 : providerName === "gemini_pro" ? trustedShoot.quantity * 0.134 : 0
@@ -403,8 +388,7 @@ export async function POST(request: Request) {
     const { error: successLogError } = await admin.from("generation_logs").update({
       provider: result.log.provider,
       model: result.log.model,
-      request_payload: result.log.request_payload,
-      response_payload: result.log.response_payload,
+      raw_response: result.log.response_payload ?? null,
       status: "success",
       error_message: null,
       credits_charged: result.log.credits_charged,
